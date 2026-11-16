@@ -36,6 +36,7 @@ import slip_parser  # noqa: E402
 import acord_adapter  # noqa: E402
 import fac_intake  # noqa: E402
 import bordereau_processor  # noqa: E402
+import audit_ledger  # noqa: E402
 
 MAX_REQUEST_BYTES = 2_000_000
 
@@ -348,9 +349,8 @@ def executive_summary(payload: dict) -> dict:
 
 
 def load_attestations_by_claim() -> dict:
-    """Active four-eyes sign-offs keyed by claim id. Populated from SQLite in
-    Step 4; empty until the ledger is wired."""
-    return {}
+    """Active four-eyes sign-offs keyed by claim id, from the SQLite ledger."""
+    return audit_ledger.signoffs_by_claim()
 
 
 def bordereau_preset() -> dict:
@@ -367,6 +367,28 @@ def bordereau_audit(payload: dict) -> dict:
         raise PayloadTooLarge("bordereau CSV too large")
     attestations = load_attestations_by_claim()
     return bordereau_processor.run(csv_text, attestations)
+
+
+def four_eyes_signoff(payload: dict) -> dict:
+    claim_id = str(payload.get("claimId", "")).strip()
+    kind = str(payload.get("subjectivityType", "")).strip()
+    examiner = str(payload.get("claimsExaminer", "")).strip()
+    accountant = str(payload.get("technicalAccountant", "")).strip()
+    if not claim_id or not kind:
+        raise ValueError("claimId and subjectivityType are required")
+    if not examiner or not accountant:
+        raise ValueError("both reviewer names are required")
+    if examiner == accountant:
+        raise ValueError(
+            "self-approval rejected: theorem selfApproval_rejected requires two different people"
+        )
+    gate, _ = run_lean(["gate", "AGD", kind, f"--attest={examiner}|{accountant}", "--json"])
+    if gate.get("gate") != "RELEASE_WIRE_AUTHORIZED":
+        raise ValueError("Lean rejected the attestation (self-approval or unknown requirement)")
+    record = audit_ledger.record_signoff(claim_id, kind, examiner, accountant, True)
+    intact, count = audit_ledger.verify_chain()
+    return {"ok": True, "gate": gate["gate"], "signoff": record,
+            "chainIntact": intact, "eventCount": count}
 
 
 def read_json(path: Path) -> dict:
@@ -454,6 +476,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(self.presets())
             if path == "/api/fac-presets":
                 return self.send_json(self.fac_presets())
+            if path == "/api/audit-ledger":
+                return self.send_json(audit_ledger.snapshot())
             if path == "/api/bordereau-preset":
                 return self.send_json(bordereau_preset())
             if path == "/api/fac-intake-samples":
@@ -482,6 +506,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({**report, "leanExecMs": ms})
             if path == "/api/parse-slip":
                 return self.send_json(self.parse_slip(body))
+            if path == "/api/four-eyes-signoff":
+                return self.send_json(four_eyes_signoff(body))
+            if path == "/api/audit-ledger/reset":
+                return self.send_json(audit_ledger.reset())
             if path == "/api/bordereau-audit":
                 return self.send_json(bordereau_audit(body))
             if path == "/api/executive-summary":
@@ -616,6 +644,7 @@ def main() -> None:
     if not WEB.exists():
         raise SystemExit(f"web directory missing: {WEB}")
     ensure_binary()
+    audit_ledger.init_db()
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"ReinsuranceLean Cockpit v1.1.0 on http://{host}:{port}")
     print(f"Lean binary: {LEAN_BIN} ({'found' if lean_available() else 'MISSING — run lake build'})")

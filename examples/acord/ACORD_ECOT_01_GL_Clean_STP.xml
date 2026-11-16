@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ACORD>
-  <GRLCClaimMovement>
+<Jv-Ins-Reinsurance Version="2016-1">
+  <ClaimMovement>
     <Sender>Marsh US Facultative</Sender>
     <Receiver>Continental Re</Receiver>
-    <ContractSection>
+    <ReferredContract>
       <ContractReference>FAC-ACORD-01</ContractReference>
       <InsuredName>Lakeside Contractors LLC</InsuredName>
       <CedentName>Continental Re</CedentName>
@@ -16,17 +16,18 @@
       <BrokerageBps>1500</BrokerageBps>
       <PaidPremiumAmt>60000</PaidPremiumAmt>
       <InsuredGroup>Lakeside Group</InsuredGroup>
-    </ContractSection>
-    <ClaimEntry>
+    </ReferredContract>
+    <Claim>
       <ClaimReference>CC-ACORD-01</ClaimReference>
       <LossDescription>Scaffold collapse, clean settlement</LossDescription>
-      <PaidIndemnityAmt>700000</PaidIndemnityAmt>
-      <PaidExpenseAmt>0</PaidExpenseAmt>
-      <OSLRIndemnityAmt>0</OSLRIndemnityAmt>
-      <OSLRExpenseAmt>0</OSLRExpenseAmt>
-      <PriorSettledAmt>0</PriorSettledAmt>
-      <PriorOSLRAmt>0</PriorOSLRAmt>
-      <CashCallBilledAmt>200000</CashCallBilledAmt>
-    </ClaimEntry>
-  </GRLCClaimMovement>
-</ACORD>
+      <ClaimEntry>
+        <ClaimMovementAmtItem Type="PaidLoss"><Amt>700000</Amt></ClaimMovementAmtItem>
+        <ClaimMovementAmtItem Type="PaidExpense"><Amt>0</Amt></ClaimMovementAmtItem>
+        <ClaimMovementAmtItem Type="OSLRLoss"><Amt>0</Amt></ClaimMovementAmtItem>
+        <ClaimMovementAmtItem Type="OSLRExpense"><Amt>0</Amt></ClaimMovementAmtItem>
+        <ClaimMovementAmtItem Type="PriorSettled"><Amt>0</Amt></ClaimMovementAmtItem>
+        <ClaimMovementAmtItem Type="CashCall"><Amt>200000</Amt></ClaimMovementAmtItem>
+      </ClaimEntry>
+    </Claim>
+  </ClaimMovement>
+</Jv-Ins-Reinsurance>

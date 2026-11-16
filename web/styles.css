@@ -415,3 +415,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .gate-pill.release { color: var(--green); border-color: rgba(16,185,129,.5); }
 .gate-pill.hold { color: var(--amber); border-color: rgba(245,158,11,.5); }
 .gate-pill.blocked { color: var(--red); border-color: rgba(239,68,68,.5); }
+
+.four-eyes-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 18px; }
+@media (max-width: 1100px) { .four-eyes-grid { grid-template-columns: 1fr; } }
+.held-list { display: grid; gap: 10px; }
+.held { background: var(--card-2); border: 1px solid rgba(245,158,11,.35); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
+.held-head { grid-column: 1 / -1; font-size: 12.5px; }
+.held input { background: #0a1020; border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 6px 8px; font: inherit; font-size: 12px; }
+.ledger { display: grid; gap: 6px; max-height: 300px; overflow: auto; }
+.ledger-row { font-size: 11.5px; color: var(--muted); border-bottom: 1px solid rgba(31,42,68,.6); padding-bottom: 4px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.ledger-row b { color: var(--text); font-size: 11px; }
+.ledger-row .hash { margin-left: auto; font-family: var(--mono); font-size: 10px; color: #3f4c66; }

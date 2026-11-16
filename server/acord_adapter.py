@@ -101,10 +101,35 @@ def _local(tag: str) -> str:
     return tag.split("}")[-1].lower()
 
 
+AMT_ITEM_TYPES = {
+    "paidloss": "paidIndemnityUsd",
+    "paidexpense": "paidAlaeUsd",
+    "oslrloss": "oslrIndemnityUsd",
+    "oslrexpense": "oslrAlaeUsd",
+    "cashcall": "cedentBilledNowUsd",
+    "priorsettled": "priorPaidUsd",
+    "prioroslr": "priorOslrBookedUsd",
+}
+
+
 def _collect_xml(node, cert: dict, claim: dict) -> None:
     for child in node:
         key = _local(child.tag)
         text = (child.text or "").strip()
+
+        # Authentic ACORD GRLC: ClaimEntry carries typed amount items.
+        if key == "claimmovementamtitem":
+            kind = (child.get("Type") or "").strip().lower()
+            field = AMT_ITEM_TYPES.get(kind)
+            if field:
+                amt_el = next((c for c in child if _local(c.tag) == "amt"), None)
+                raw = (amt_el.text if amt_el is not None else child.text) or "0"
+                try:
+                    claim[field] = _num(raw)
+                except ValueError:
+                    pass
+            _collect_xml(child, cert, claim)
+            continue
         if key in NUMERIC_FIELDS and text:
             cert_or_claim = NUMERIC_FIELDS[key]
             target = claim if cert_or_claim in {
@@ -223,8 +248,9 @@ def build_outbound(report: dict, cert: dict, claim: dict, theorem_count: int = 0
     v = row["voucher"]
 
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<ACORD>
-  <GRLCClaimMovementResponse>
+<Jv-Ins-Reinsurance Version="2016-1">
+  <ClaimMovementResponse>
+    <AcknowledgementStatus>{_esc(code)}</AcknowledgementStatus>
     <ResponseStatusCode>{_esc(code)}</ResponseStatusCode>
     <RuschlikonStatus>{_esc(row['ruschlikonStatus'])}</RuschlikonStatus>
     <ContractReference>{_esc(row['certId'])}</ContractReference>
@@ -265,8 +291,8 @@ def build_outbound(report: dict, cert: dict, claim: dict, theorem_count: int = 0
       <Sorries>0</Sorries>
     </LeanKernelCertificate>
     <Explanation>{_esc(row['explanation'])}</Explanation>
-  </GRLCClaimMovementResponse>
-</ACORD>
+  </ClaimMovementResponse>
+</Jv-Ins-Reinsurance>
 """
 
     out_json = {

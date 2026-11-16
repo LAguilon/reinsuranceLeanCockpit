@@ -738,6 +738,7 @@ async function init() {
     await loadTheorems();
     await selectPreset(state.presets.portfolios[0].id);
     await loadFac();
+    await loadLedger();
     showView("fac");
   } catch (err) {
     document.body.insertAdjacentHTML(
@@ -821,6 +822,69 @@ function renderBordereau(res) {
   $("#bordLatency").textContent = `Lean ${k.leanExecMs} ms · ${k.stpAgreedCount} released · ${k.queriedDisputeCount} queried`;
   $("#downloadSap").disabled = false;
   renderBordTable();
+  renderHeldClaims();
+}
+
+function renderHeldClaims() {
+  const rows = ((state.bord.result && state.bord.result.rows) || []).filter(
+    (r) => r.gate === "HOLD_FOUR_EYES_REQUIRED"
+  );
+  $("#heldClaims").innerHTML = rows.length
+    ? rows
+        .map(
+          (r) => `<div class="held">
+            <div class="held-head"><b>${r.claimId}</b> · ${r.cedent} · ${r.subjectivity.join(", ")}</div>
+            <input id="ce-${r.claimId}" placeholder="Claims examiner" />
+            <input id="ta-${r.claimId}" placeholder="Technical accountant" />
+            <button type="button" class="btn btn-primary" data-sign="${r.claimId}" data-kind="${r.subjectivity[0]}">Sign off</button>
+          </div>`
+        )
+        .join("")
+    : `<div class="muted">No claims on hold.</div>`;
+  document.querySelectorAll("[data-sign]").forEach((btn) => {
+    btn.addEventListener("click", () => signOff(btn.dataset.sign, btn.dataset.kind));
+  });
+}
+
+async function signOff(claimId, kind) {
+  const examiner = document.getElementById(`ce-${claimId}`).value.trim();
+  const accountant = document.getElementById(`ta-${claimId}`).value.trim();
+  try {
+    await api("/api/four-eyes-signoff", {
+      method: "POST",
+      body: JSON.stringify({
+        claimId,
+        subjectivityType: kind,
+        claimsExaminer: examiner,
+        technicalAccountant: accountant,
+      }),
+    });
+    await runBordereau(null);
+    await loadLedger();
+  } catch (err) {
+    $("#chainStatus").textContent = err.message;
+    $("#chainStatus").className = "danger";
+  }
+}
+
+async function loadLedger() {
+  try {
+    const data = await api("/api/audit-ledger");
+    $("#chainStatus").textContent = `${data.chainIntact ? "chain intact" : "CHAIN BROKEN"} · ${data.eventCount} events`;
+    $("#chainStatus").className = data.chainIntact ? "ok" : "danger";
+    $("#ledgerEvents").innerHTML = data.events
+      .map(
+        (e) => `<div class="ledger-row">
+          <span class="mono">${e.timestamp_utc.replace("T", " ")}</span>
+          <b>${e.event_type}</b> <span class="mono">${e.entity_ref}</span>
+          <span class="muted">${e.summary}</span>
+          <span class="hash">${e.entry_hash.slice(0, 12)}…</span></div>`
+      )
+      .join("");
+  } catch (err) {
+    $("#chainStatus").textContent = err.message;
+    $("#chainStatus").className = "danger";
+  }
 }
 
 async function runBordereau(csvText) {

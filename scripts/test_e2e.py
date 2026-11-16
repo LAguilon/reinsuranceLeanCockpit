@@ -398,6 +398,19 @@ def main() -> int:
         check("executive: treaty stress still 94%", execu["treaty"]["solvencyRatioPct"] == 94)
 
         # ---- Quarterly bordereau (v1.1.0) ----------------------------------
+        def post_raw(path, payload):
+            req = urllib.request.Request(
+                base + path, data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"}, method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req) as res:
+                    return res.status, json.loads(res.read() or b"{}")
+            except urllib.error.HTTPError as err:
+                return err.code, json.loads(err.read() or b"{}")
+
+        status, _ = post_raw("/api/audit-ledger/reset", {})
+        check("ledger reset", status == 200)
         bord = request(base, "/api/bordereau-preset")
         check("bordereau preset: 24 rows", bord["rows"] == 24)
         check("bordereau preset: CSV has a header and 24 data rows",
@@ -422,6 +435,48 @@ def main() -> int:
         check("bordereau: SAP CSV carries GL accounts", all(r["gl_account"] for r in sap_rows))
         check("bordereau: every row has a gate verdict",
               all(r["gate"] for r in batch["rows"]) and len(batch["rows"]) == 24)
+
+        # ---- Four-eyes segregation and audit ledger (v1.1.0) ---------------
+        status, body = post_raw("/api/four-eyes-signoff", {
+            "claimId": "BQ-2026-023",
+            "subjectivityType": "declaratoryJudgmentFee",
+            "claimsExaminer": "Alice",
+            "technicalAccountant": "Alice",
+        })
+        check(
+            "four-eyes: same person rejected with 400 citing selfApproval_rejected",
+            status == 400 and "selfApproval_rejected" in body.get("error", ""),
+            f"{status} {body.get('error', '')[:60]}",
+        )
+
+        status, body = post_raw("/api/four-eyes-signoff", {
+            "claimId": "BQ-2026-023",
+            "subjectivityType": "declaratoryJudgmentFee",
+            "claimsExaminer": "Alice (Claims)",
+            "technicalAccountant": "Bob (Accounting)",
+        })
+        check(
+            "four-eyes: two distinct reviewers release the wire",
+            status == 200 and body.get("gate") == "RELEASE_WIRE_AUTHORIZED" and body.get("chainIntact") is True,
+            str(body)[:120],
+        )
+
+        ledger = request(base, "/api/audit-ledger")
+        check("ledger: chain intact after sign-off", ledger["chainIntact"] is True)
+        check("ledger: sign-off recorded", len(ledger["fourEyesSignoffs"]) == 1)
+        check("ledger: events are hash-chained", ledger["eventCount"] >= 2 and all(e["entry_hash"] for e in ledger["events"]))
+
+        after = request(base, "/api/bordereau-audit", {})
+        check(
+            "four-eyes: held claim releases in the batch after sign-off",
+            after["kpis"]["fourEyesHoldCount"] == 1 and after["kpis"]["stpAgreedCount"] == 17,
+            str(after["kpis"]["fourEyesHoldCount"]),
+        )
+
+        acord_out = request(base, "/api/acord-process", {"sampleName": "ACORD_ECOT_01_GL_Clean_STP.xml"})
+        check("acord: inbound Jv-Ins-Reinsurance parsed", acord_out["inbound"]["certificate"]["certId"] == "FAC-ACORD-01")
+        check("acord: outbound is Jv-Ins-Reinsurance", "<Jv-Ins-Reinsurance" in acord_out["outboundXml"])
+        check("acord: outbound carries AcknowledgementStatus", "<AcknowledgementStatus>AGD</AcknowledgementStatus>" in acord_out["outboundXml"])
 
         # ---- ACORD GRLC / Ruschlikon STP (v0.7) ----------------------------
         acord = request(base, "/api/acord-samples")
