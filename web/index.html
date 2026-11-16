@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ReinsuranceLean Cockpit v1.0.0</title>
+<title>ReinsuranceLean Cockpit v1.1.0</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,7 +11,7 @@
   <div class="brand">
     <span class="logo">▣</span>
     <div>
-      <h1>ReinsuranceLean Cockpit <span class="ver">v1.0.0</span></h1>
+      <h1>ReinsuranceLean Cockpit <span class="ver">v1.1.0</span></h1>
       <p class="sub">Formal contract gatekeeper · static loophole scanner · multi-event solvency simulator</p>
     </div>
   </div>
@@ -28,7 +28,7 @@
   <button class="wtab" data-view="cockpit">Treaty Portfolio &amp; Solvency Cockpit</button>
   <button class="wtab" data-view="group">Group Executive Bridge</button>
   <button class="wtab" data-view="guide">How It Works</button>
-  <button class="tour-btn" id="tourBtn">▶ 60s Guided Demo Tour</button>
+  <button type="button" class="btn btn-tour" id="start-tour-btn">▶ 60s Guided Demo Tour</button>
 </nav>
 
 <div id="view-cockpit" class="view" hidden>
@@ -180,20 +180,37 @@
 </div><!-- /view-cockpit -->
 
 <div id="view-fac" class="view">
-  <section class="panel ribbon" id="facRibbon">
-    <div class="ribbon-cell"><span>Leakage prevented</span><strong id="ribLeakage" class="danger">—</strong></div>
-    <div class="ribbon-cell"><span>Ruschlikon STP rate</span><strong id="ribStp">—</strong></div>
-    <div class="ribbon-cell"><span>Unpaid premium offset</span><strong id="ribOffset">—</strong></div>
-    <div class="ribbon-cell"><span>Verified ending OSLR / LIC</span><strong id="ribOslr">—</strong></div>
-    <div class="ribbon-cell"><span>Group EUR impact</span><strong id="ribEur" class="ok">—</strong></div>
-    <div class="ribbon-cell"><span>Clash alerts</span><strong id="ribClash">—</strong></div>
-  </section>
-
-  <section class="panel fac-summary">
-    <div class="fac-kpi"><span>Total cedent billed</span><strong id="facBilledTotal">—</strong></div>
-    <div class="fac-kpi"><span>Lean verified payable</span><strong id="facVerifiedTotal" class="ok">—</strong></div>
-    <div class="fac-kpi"><span>Overbilling caught &amp; saved</span><strong id="facOverTotal" class="danger">—</strong></div>
-    <div class="fac-kpi"><span>Disputed cash calls</span><strong id="facDisputeTotal">—</strong></div>
+  <section class="kpi-strip" id="facKpis">
+    <div class="kpi-card">
+      <span class="kpi-label">Total cedent billed</span>
+      <strong class="kpi-value" id="kpiBilled">—</strong>
+      <span class="kpi-sub" id="kpiBilledSub">6 Q3 cash calls</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Verified net cash wire</span>
+      <strong class="kpi-value ok" id="kpiWire">—</strong>
+      <span class="kpi-sub" id="kpiWireSub">—</span>
+    </div>
+    <div class="kpi-card kpi-card-danger">
+      <span class="kpi-label">Leakage prevented</span>
+      <strong class="kpi-value danger" id="kpiLeakage">—</strong>
+      <span class="kpi-sub" id="kpiLeakageSub">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Ruschlikon STP rate</span>
+      <strong class="kpi-value" id="kpiStp">—</strong>
+      <span class="kpi-sub" id="kpiStpSub">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Ending OSLR / LIC booked</span>
+      <strong class="kpi-value" id="kpiOslr">—</strong>
+      <span class="kpi-sub" id="kpiOslrSub">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Group EUR &amp; clash</span>
+      <strong class="kpi-value" id="kpiGroup">—</strong>
+      <span class="kpi-sub" id="kpiGroupSub">—</span>
+    </div>
   </section>
 
   <section class="panel">
@@ -209,13 +226,20 @@
       <h2>Universal intake</h2>
       <span class="muted">Drop a PDF, an ACORD XML/JSON message, or paste a broker email</span>
     </div>
-    <div class="intake-grid">
-      <div id="facDrop" class="dropzone">
-        <p><strong>Drop a PDF / ACORD / email</strong></p>
-        <p class="muted">or click to choose a file</p>
-        <input type="file" id="facFile" accept=".pdf,.xml,.json,.txt,.eml" hidden />
+    <div class="intake-split">
+      <div class="intake-left">
+        <div id="facDrop" class="dropzone">
+          <p><strong>Drop a PDF / ACORD / email</strong></p>
+          <p class="muted">or click to choose a file (.pdf .xml .json .txt)</p>
+          <input type="file" id="facFile" accept=".pdf,.xml,.json,.txt,.eml" hidden />
+        </div>
+        <div class="demo-buttons" id="facSamples"></div>
       </div>
-      <div class="demo-buttons" id="facSamples"></div>
+      <div class="intake-right">
+        <textarea id="intakeText" class="intake-textarea" rows="6"
+          placeholder="Paste raw Broker Cash-Call Email or ACORD GRLC XML/JSON here..."></textarea>
+        <button type="button" class="btn btn-primary" id="intakeVerify">Verify &amp; Code Clauses in Lean</button>
+      </div>
     </div>
     <div id="intakeWarnings" class="translation-banner" hidden></div>
     <div class="three-way">
@@ -223,7 +247,7 @@
       <div><h3>2 · Generated Lean 4</h3><pre id="intakeLean" class="code">—</pre></div>
       <div><h3>3 · Lean back-translation</h3><pre id="intakeEnglish" class="code">—</pre></div>
     </div>
-    <button class="btn btn-primary" id="intakeUse" disabled>Load parsed contract into the calculator</button>
+    <button type="button" class="btn btn-ghost" id="intakeUse" disabled>Load parsed contract into the calculator</button>
   </section>
 
   <section class="panel">

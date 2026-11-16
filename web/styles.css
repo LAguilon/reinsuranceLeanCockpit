@@ -331,3 +331,76 @@ details.theorems table { margin-top: 10px; }
 .tour-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
 .tour-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .tour-highlight { outline: 2px solid var(--green); outline-offset: 4px; border-radius: 12px; }
+
+/* ---------- v1.1.0: unified KPI strip, buttons, intake split ---------- */
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+button:hover { border-color: #33456b; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-tour {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-tour:hover { box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1200px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-card-danger {
+  border-color: rgba(239, 68, 68, .35);
+  background: rgba(239, 68, 68, .05);
+}
+.kpi-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+.kpi-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-sub { font-size: 11px; color: var(--muted); }
+
+.intake-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 1000px) { .intake-split { grid-template-columns: 1fr; } }
+.intake-left, .intake-right { display: flex; flex-direction: column; gap: 10px; }
+.intake-textarea {
+  width: 100%;
+  background: #0a1020;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  resize: vertical;
+}
+.intake-textarea:focus { outline: none; border-color: var(--blue); }

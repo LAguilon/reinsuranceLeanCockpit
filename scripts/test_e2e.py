@@ -342,12 +342,11 @@ def main() -> int:
         intake_samples = fac.get("intakeSamples", [])
         check("presets expose 4 intake samples", len(intake_samples) == 4)
         intake_expected = {
-            "EMAIL_01_URGENT_AL_Trucking.txt": ("text", "DISPUTE_OVERBILLED", 78_000, 0),
-            "EMAIL_03_Punitive_Hammer_Warning.txt": ("text", "DISPUTE_OVERBILLED", 400_000, 5),
+            "ACORD_ECOT_01_GL_Clean_STP.xml": ("acord_xml", "APPROVED_EXACT", 0, 0),
             "ACORD_ECOT_02_AL_OSLR_Premature_CashCall.xml": (
                 "acord_xml", "DISPUTE_PREMATURE_OSLR_CASHCALL", 250_000, 0),
-            "FAC-AL-05_Premature_OSLR_Cash_Call.pdf": (
-                "pdf", "DISPUTE_PREMATURE_OSLR_CASHCALL", 250_000, 0),
+            "ACORD_ECOT_03_DO_Overbilled_Share.json": ("acord_json", "DISPUTE_OVERBILLED", 400_000, 0),
+            "EMAIL_01_URGENT_AL_Trucking.txt": ("text", "DISPUTE_OVERBILLED", 78_000, 0),
         }
         for sample in intake_samples:
             out = request(base, "/api/fac-intake", {"sampleName": sample["name"]})

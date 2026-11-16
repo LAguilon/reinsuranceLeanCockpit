@@ -683,7 +683,7 @@ function endTour() {
 }
 
 function setupTour() {
-  $("#tourBtn").addEventListener("click", startTour);
+  $("#start-tour-btn").addEventListener("click", startTour);
   $("#tourSkip").addEventListener("click", endTour);
   $("#tourNext").addEventListener("click", () => {
     if (tourIndex >= TOUR_STEPS.length - 1) return endTour();
@@ -764,19 +764,41 @@ function showView(name) {
   if (name === "group" && !state.fac.execu) loadExecutive();
 }
 
-function renderRibbon(report, execu) {
+const usdK = (n) => "$" + Math.round(Number(n || 0) / 1000) + "k";
+
+function renderKpis(report, execu) {
   const results = report.results || [];
-  const agd = results.filter((r) => r.acordResponseCode === "AGD").length;
-  const rate = results.length ? Math.round((agd * 100) / results.length) : 0;
-  $("#ribLeakage").textContent = usd(report.totalOverbilledUsd);
-  $("#ribStp").textContent = `${rate}% (${agd}/${results.length})`;
-  $("#ribOffset").textContent = usd(report.totalPremiumOffsetUsd);
-  $("#ribOslr").textContent = usd(report.totalEndingOslrUsd);
+  const total = results.length;
+  const auto = results.filter(
+    (r) => r.acordResponseCode === "AGD" || r.acordResponseCode === "AGD_OFFSET"
+  ).length;
+  const queried = results.filter((r) => r.acordResponseCode === "QRY").length;
+  const held = total - auto;
+  const stpRate = total ? Math.round((auto * 100) / total) : 0;
+
+  $("#kpiBilled").textContent = usd(report.totalBilledUsd);
+  $("#kpiBilledSub").textContent = `${total} Q3 cash calls`;
+  $("#kpiWire").textContent = usd(report.totalNetWireUsd);
+  $("#kpiWireSub").textContent =
+    `Gross ${usd(report.totalVerifiedUsd)} less ${usdK(report.totalPremiumOffsetUsd)} offset`;
+  $("#kpiLeakage").textContent = usd(report.totalOverbilledUsd);
+  $("#kpiLeakageSub").textContent = `${queried} of ${total} queried`;
+  $("#kpiStp").textContent = `${stpRate}%`;
+  $("#kpiStpSub").textContent = `${auto} auto-settled · ${held} held`;
+  $("#kpiOslr").textContent = usd(report.totalEndingOslrUsd);
+  $("#kpiOslrSub").textContent = `+${usd(report.totalPremiumOffsetUsd)} premium offset`;
+
   if (execu) {
-    $("#ribEur").textContent = `€${(execu.group.rollup.totalLeakagePreventedEur / 1e6).toFixed(1)}M`;
-    const hot = execu.group.clashes.filter((c) => c.exceedsThreshold).length;
-    $("#ribClash").textContent = hot > 0 ? `${hot} alert${hot > 1 ? "s" : ""}` : "none";
-    $("#ribClash").className = hot > 0 ? "danger" : "ok";
+    const hot = execu.group.clashes.filter(
+      (c) => c.kind === "OCCURRENCE_TAG" && c.exceedsThreshold
+    );
+    $("#kpiGroup").textContent = `€${(execu.group.rollup.totalLeakagePreventedEur / 1e6).toFixed(1)}M`;
+    $("#kpiGroupSub").textContent = hot.length
+      ? `${hot.length} Clash Alert${hot.length > 1 ? "s" : ""} (${usdK(hot[0].combinedIncurredUsd)})`
+      : "No clash alerts";
+  } else {
+    $("#kpiGroup").textContent = "€—";
+    $("#kpiGroupSub").textContent = "loading group view…";
   }
 }
 
@@ -818,14 +840,6 @@ function renderGroup(execu) {
   $("#rollupTable tbody").innerHTML = rows
     .map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`)
     .join("");
-}
-
-function renderFacSummary(report) {
-  renderRibbon(report, state.fac.execu);
-  $("#facBilledTotal").textContent = usd(report.totalBilledUsd);
-  $("#facVerifiedTotal").textContent = usd(report.totalVerifiedUsd);
-  $("#facOverTotal").textContent = usd(report.totalOverbilledUsd);
-  $("#facDisputeTotal").textContent = `${report.disputeCount} of ${report.results.length}`;
 }
 
 function renderFacCases(cases, bundle) {
@@ -1031,6 +1045,25 @@ async function bindIntake(name) {
   }
 }
 
+async function bindIntakeText() {
+  const text = $("#intakeText").value.trim();
+  if (!text) {
+    $("#intakeWarnings").hidden = false;
+    $("#intakeWarnings").textContent = "Paste a broker email or an ACORD message first.";
+    return;
+  }
+  try {
+    const result = await api("/api/fac-intake", {
+      method: "POST",
+      body: JSON.stringify({ content: text, filename: "pasted.txt" }),
+    });
+    renderIntake(result);
+  } catch (err) {
+    $("#intakeWarnings").hidden = false;
+    $("#intakeWarnings").textContent = err.message;
+  }
+}
+
 async function bindIntakeFile(file) {
   const reader = new FileReader();
   reader.onload = async () => {
@@ -1073,7 +1106,7 @@ async function loadExecutive() {
     const execu = await api("/api/executive-summary", { method: "POST", body: "{}" });
     state.fac.execu = execu;
     renderGroup(execu);
-    if (state.fac.report) renderRibbon(state.fac.report, execu);
+    if (state.fac.report) renderKpis(state.fac.report, execu);
   } catch (err) {
     $("#clashList").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
   }
@@ -1087,7 +1120,7 @@ async function loadFac() {
     state.fac.bundle = data.bundle;
     state.fac.cases = data.cases;
     state.fac.loaded = true;
-    renderFacSummary(data.report);
+    renderKpis(data.report, state.fac.execu);
     renderFacCases(data.cases, data.bundle);
     renderIntakeSamples(data.intakeSamples || []);
     selectFacCase(data.cases[0].certId);
@@ -1103,6 +1136,7 @@ function setupFacUI() {
   });
   $("#facRun").addEventListener("click", runFacAudit);
   $("#intakeUse").addEventListener("click", loadIntakeIntoCalculator);
+  $("#intakeVerify").addEventListener("click", bindIntakeText);
   const drop = $("#facDrop");
   const fileInput = $("#facFile");
   if (drop && fileInput) {

@@ -283,10 +283,10 @@ def process_acord(payload: dict) -> dict:
 
 
 INTAKE_SAMPLES = [
-    ("EMAIL_01_URGENT_AL_Trucking.txt", "Broker email · Auto Liability with an OSLR cash call", "text"),
-    ("EMAIL_03_Punitive_Hammer_Warning.txt", "Broker email · D&O with punitive/hammer wording", "text"),
-    ("ACORD_ECOT_02_AL_OSLR_Premature_CashCall.xml", "ACORD GRLC ECOT · OSLR trap", "acord_xml"),
-    ("FAC-AL-05_Premature_OSLR_Cash_Call.pdf", "Cedent cash-call PDF · OSLR trap", "pdf"),
+    ("ACORD_ECOT_01_GL_Clean_STP.xml", "Load ACORD Clean STP XML", "acord_xml"),
+    ("ACORD_ECOT_02_AL_OSLR_Premature_CashCall.xml", "Load ACORD OSLR Trap XML", "acord_xml"),
+    ("ACORD_ECOT_03_DO_Overbilled_Share.json", "Load ACORD D&O JSON", "acord_json"),
+    ("EMAIL_01_URGENT_AL_Trucking.txt", "Load Messy Broker Email", "text"),
 ]
 
 
@@ -369,7 +369,7 @@ def slip_list() -> list[dict]:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "ReinsuranceLeanCockpit/1.0.0"
+    server_version = "ReinsuranceLeanCockpit/1.1.0"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB), **kwargs)
@@ -590,7 +590,7 @@ def main() -> None:
         raise SystemExit(f"web directory missing: {WEB}")
     ensure_binary()
     server = ThreadingHTTPServer((host, port), Handler)
-    print(f"ReinsuranceLean Cockpit v1.0.0 on http://{host}:{port}")
+    print(f"ReinsuranceLean Cockpit v1.1.0 on http://{host}:{port}")
     print(f"Lean binary: {LEAN_BIN} ({'found' if lean_available() else 'MISSING — run lake build'})")
     try:
         server.serve_forever()

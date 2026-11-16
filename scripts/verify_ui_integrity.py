@@ -61,9 +61,9 @@ def main() -> int:
     else:
         ok(f"all {len(js_refs)} JS element ids exist in index.html")
 
-    stale = [v for v in ("v0.4", "v0.5") if v in html or v in main_lean]
-    (ok if not stale else bad)("no stale v0.4/v0.5 banners", str(stale))
-    (ok if "v1.0.0" in html else bad)("index.html shows v1.0.0")
+    stale = [v for v in ("v0.4", "v0.5", "v1.0.0") if v in html or v in main_lean]
+    (ok if not stale else bad)("no stale v0.4/v0.5/v1.0.0 banners", str(stale))
+    (ok if "v1.1.0" in html else bad)("index.html shows v1.1.0")
 
     js_routes = set(re.findall(r'"(/api/[A-Za-z0-9\-]+)"', js))
     js_routes |= set(re.findall(r'`(/api/[A-Za-z0-9\-]+)/', js))

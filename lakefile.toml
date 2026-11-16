@@ -1,5 +1,5 @@
 name = "reinsuranceLeanCockpit"
-version = "1.0.0"
+version = "1.1.0"
 description = "Formal verification and risk-intelligence engine for bound reinsurance portfolios: exact integer arithmetic, kernel-checked invariants, executable loophole and Solvency II cockpit."
 keywords = ["reinsurance", "solvency-ii", "formal-verification", "actuarial", "lean4"]
 license = "Apache-2.0"

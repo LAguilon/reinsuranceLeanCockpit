@@ -1,9 +1,12 @@
-# reinsuranceLeanCockpit
+# reinsuranceLeanCockpit — v1.1.0
 
-**v1.0.0** — a show-ready MVP for agentic AI plus Lean 4 formal verification in
-reinsurance accounting. Two audiences, one engine: US facultative technical
-accountants who need the number to be right, and group executives who need to
-see the capital it protects.
+Agentic AI plus Lean 4 formal verification for US facultative reinsurance
+accounting. Two audiences, one engine: technical accountants who need the number
+to be right, and group executives who need to see the capital it protects.
+
+Every figure in the browser is produced by a compiled Lean 4 binary. Python is
+transport; the kernel is the calculator. No Mathlib, no floating point, no
+`sorry`.
 
 ```bash
 lake build && python3 server/app.py     # → http://localhost:8080
@@ -11,10 +14,9 @@ lake build && python3 server/app.py     # → http://localhost:8080
 
 ---
 
-## What the desk does, in numbers
+## The numbers
 
-Six Q3 cash calls from a real-shaped US facultative book, audited by the
-compiled Lean binary:
+Six Q3 cedent cash calls, audited by the kernel:
 
 | | Amount |
 |---|---|
@@ -24,472 +26,191 @@ compiled Lean binary:
 | Unpaid net premium offset | **$51,000** |
 | Net wire authorised | **$2,579,000** |
 | Verified ending OSLR / IFRS 17 LIC | **$280,000** |
-| Ruschlikon STP auto-agreed | **1 of 6 (16%)** |
+| Ruschlikon STP auto-settled | **2 of 6 (33%)** |
 
-The four disputes are the four failure modes that actually happen:
+A quarterly **24-claim carrier bordereau** runs through the same engine in a
+single batch and prevents **over $1.4 million** of leakage, producing a
+ready-to-post SAP FS-RI / IFRS 17 journal CSV.
+
+The four cash-call disputes are the four failure modes that actually happen:
 
 * **Defence cannot pierce an attachment.** $450,000 of indemnity against a
   $500,000 attachment means no ceded indemnity and therefore no pro-rata ALAE —
   yet the cedent billed $130,000.
 * **Defence inside limits caps the layer.** A $22M D&O loss is capped at the
-  $10M limit; 20% of that is $2,000,000, not 20% of the pre-cap total. Billed
-  $2,400,000.
+  $10M limit; 20% of that is $2,000,000, not 20% of the pre-cap total.
 * **Prior paid is cumulative.** Billing the full $350,000 layer position without
   deducting $200,000 already settled.
-* **A case reserve is not cash.** Paid indemnity of $400,000 is still below the
-  attachment, so the $280,000 incurred position is a **reserve to book**, not a
+* **A case reserve is not cash.** Paid indemnity of $400,000 is below the
+  attachment, so the $280,000 incurred position is a reserve to book, not a
   wire. The cedent asked for $250,000 in cash.
 
-## Paid vs. incurred, and why the distinction is the product
+---
 
-A claim has cash paid *and* an outstanding case reserve. The layer responds to
-incurred; only paid losses can be wired. The cockpit books both:
+## Architecture
 
 ```
-verifiedEndingOslr = max(incurred, paid) − paid
-grossCashPayable   = paid − priorPaid
-premiumOffset      = min(grossCashPayable, unpaidNetPremium)
-netWire            = grossCashPayable − premiumOffset
+PDF / ACORD XML / broker email / CSV bordereau
+        │
+        ├─ intake parser (stdlib only, deterministic)
+        │
+        ▼
+Lean 4 kernel  ──  gatekeeper (isValid) → audit (paid vs incurred, ALAE, offset)
+        │
+        ├─ Ruschlikon classifier (AGD / AGD_OFFSET / QRY / REJ)
+        ├─ four-eyes subjectivity gate (claims examiner + technical accountant)
+        ├─ two-leg voucher (cash settlement + OSLR movement)
+        ▼
+server/app.py  ──  JSON API, hash-chained audit ledger (SQLite)
+        │
+        ▼
+vanilla HTML/CSS/JS cockpit (no framework, no build step)
 ```
 
-and proves `paid + endingOslr = incurred` and that the two-leg voucher balances
-(`fullFacVoucher_balanced`) for every certificate, claim and offset.
-
-## ACORD GRLC / Ruschlikon STP
-
-`Acord.lean` classifies every audit as `AGD`, `AGD_OFFSET`, `QRY` or `REJ`, and
-proves the guardrail:
-
-```lean
-theorem stpAutoAgreed_implies_valid_and_zero_overbill :
-  classifyRuschlikonStp cert res = .STP_AUTO_AGREED →
-    cert.isValid = true ∧ res.overbilledUsd = 0 ∧ res.underbilledUsd = 0
-```
-
-An overbilled claim can never auto-approve. `server/acord_adapter.py` parses
-ECOT XML/JSON (rejecting `DOCTYPE`/`ENTITY` outright) and emits an EBOT
-`ClaimMovementResponse` with both ledger legs and the Lean certificate metadata.
-
-## Clause-to-Lean intake
-
-Drop a PDF, an ACORD message, or paste a broker email. The intake engine returns
-three things side by side: the extracted text, the **exact compilable Lean 4
-definitions**, and the plain-English back-translation of what was verified —
-plus warnings for clauses the model cannot represent (punitive damages, hammer,
-consent to settle, PFAS, subrogation, and eight more). An optional
-`OPENAI_API_KEY` pass can annotate extraction; Lean still performs every
-validation and calculation.
-
-## Group executive bridge
-
-The desk works in dollars; the group works in euros. `GroupBridge.lean` detects
-multi-line casualty clashes (the sample book has a Workers' Comp + General
-Liability pileup at $550,000 against a $300,000 threshold), rolls the desk into
-EUR, and proves that leakage prevention can only raise the group ratio
-(`groupView_protectedRatio_ge`).
-
-## Trust, deployment, documentation
-
-* **92 kernel-checked theorems**, 13 named specifications in a tactic-free
-  `TrustBoundary.lean`, zero `sorry`, zero `native_decide`, no custom axioms.
-* **Deployment**: multi-stage `Dockerfile` that runs the paranoid audit during
-  the image build, `render.yaml` for one-click Render, and
-  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Fly.io, Railway and a VPS.
-* **Manual**: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — plain English, no Lean.
-* **In-app tour**: `▶ 60s Guided Demo Tour` in the header, five steps.
+There is no second implementation of the arithmetic to drift out of sync, and
+the browser never computes a number.
 
 ---
 
-**v0.5 adds a US facultative casualty accounting desk**: four bound certificates
-(AL, GL, WCA, D&O) audited against four Q3 cedent cash calls, **$730,000 of
-overbilling caught across three disputes**, a double-entry journal per claim
-proved to balance, and a broker memo drafted from the arithmetic. Read the
-[**User & Architecture Guide**](docs/USER_GUIDE.md) first if you are an
-accountant rather than an engineer.
+## The desk
 
-**v0.4** fixes the post-season balance sheet. Own funds now erode by the realised
-season drain, aggregate limits erode across events, and the solvency curve is
-proved monotone in `Monotonicity.lean` — a bigger loss can no longer leave the
-ratio flat, let alone raise it.
+Six cash calls, four lines (Auto Liability, General Liability, Workers' Comp,
+D&O), three ALAE clauses. Each row shows the cedent's bill, the verified cash,
+the ending case reserve, a double-entry voucher and a broker memo.
 
-**v0.3** closed the loop from paper to balance sheet:
+**Paid versus incurred.** The layer responds to incurred; only paid can be
+wired. The cockpit computes `verifiedEndingOslr = max(incurred, paid) − paid`,
+books it, and refuses to wire it. A cedent billing cash while paid indemnity is
+still below the attachment gets `DISPUTE_PREMATURE_OSLR_CASHCALL`.
 
-```
-PDF/MRC slip ──► Python extractor ──► Lean gatekeeper ──► static scanner ──► multi-event simulator
-   (.pdf)          (stdlib only)        (isValid)         (5 loophole classes)   (FX + cat season)
-```
+**Premium offset.** Unpaid net premium (gross less brokerage, less cash
+received) is netted against an approved wire when elected.
 
-A broker's slip is parsed, admitted or rejected by the same `isValid` predicate
-the theorems consume, scanned for structural flaws, and then stressed through a
-catastrophe season. The browser never computes a number; it renders what the
-compiled Lean binary returned.
-
-```bash
-lake build                 # ~10s from clean, zero dependencies
-python3 server/app.py      # → http://localhost:8080
-python3 scripts/test_e2e.py
-```
+**Two-leg voucher.** Leg A settles cash (paid claims expense against premium
+offset and wire). Leg B moves the reserve (OSLR expense/liability, or release).
+Both are proved to balance for every claim.
 
 ---
 
-## US facultative accounting desk (v0.5)
+## Formal guarantees
 
-A facultative certificate is a single-risk layer: attachment, 100% limit, signed
-share, and — the part that decides most disputes — where ALAE sits.
-
-| Case | Certificate | Clause | Billed | Verified | Verdict |
-|---|---|---|---|---|---|
-| FAC-AL-01 | Auto Liability $500k xs $500k, 100% | Pro-rata in addition | $130,000 | **$0** | overbilled $130,000 |
-| FAC-DO-02 | D&O 20% of $10M xs $10M | Included within limits | $2,400,000 | **$2,000,000** | overbilled $400,000 |
-| FAC-WCA-03 | Workers' Comp $500k xs $500k, 100% | Excluded | $350,000 | **$150,000** | overbilled $200,000 |
-| FAC-GL-04 | General Liability $500k xs $500k, 100% | Pro-rata in addition | $280,000 | **$280,000** | exact |
-
-Totals: **$3,160,000 billed, $2,430,000 verified, $730,000 overbilling caught.**
-
-The three failure modes are the three real ones:
-
-* **Defence cannot pierce an attachment.** FAC-AL-01 has $450,000 of indemnity
-  against a $500,000 attachment, so there is no ceded indemnity and therefore no
-  pro-rata ALAE to add. The cedent billed $130,000 for a layer that owes nothing.
-* **Defence inside limits caps the layer.** FAC-DO-02's $22M combined loss is
-  capped at the $10M limit, and 20% of that is $2,000,000 — not 20% of the
-  pre-cap total.
-* **Prior paid is cumulative.** FAC-WCA-03 billed the full $350,000 cumulative
-  layer position without deducting $200,000 already settled.
-
-### Kernel-checked desk invariants
+13 named specifications in a tactic-free `TrustBoundary.lean`, discharged at
+their exact declared types in `TrustProofs.lean`, and 96+ kernel-checked
+theorems overall. The headline invariants:
 
 | Theorem | Statement |
 |---|---|
-| `proRataAlae_le_alae` | pro-rata ALAE never exceeds the ALAE it prorates |
-| `facIncluded_capped_by_share` | defence inside limits is capped by limit × signed share |
 | `fac_no_overrecovery` | across all three ALAE clauses, payout ≤ ground-up indemnity + ALAE |
-| `facIncremental_conservation` | prior paid + incremental due = cumulative liability |
-| `facOverbill_reconciliation` | verified + overbilled = billed |
-| `facJournal_balanced` | **total debits = total credits, for every claim** |
-| `facVerified_le_cumulative` | the increment never exceeds cumulative liability |
-| `facBilled_reconciles` | verified + overbilled = billed at the audit-result level |
+| `facIncluded_capped_by_share` | defence inside limits capped by limit × signed share |
+| `paid_plus_endingOslr_eq_incurred` | paid + ending reserve = incurred |
+| `fullFacVoucher_balanced` | total debits = total credits, every claim |
+| `stpAutoAgreed_implies_valid_and_zero_overbill` | STP auto-agreement implies a valid, exact bill |
+| `selfApproval_rejected` | the same person cannot fill both four-eyes roles |
+| `unattestedSubjectivity_holds_wire` | unattested subjectivity always holds the wire |
+| `disputedClaim_never_authorized` | a queried or rejected claim is never authorized |
+| `rollup_wire_plus_offset_le_verified` | batch: offset + net wire = verified cash |
+| `groupView_protectedRatio_ge` | preventing leakage can only raise the group ratio |
 
-### CLI
+`python3 scripts/paranoid_audit.py` answers the four trust questions: the
+statements are readable and tactic-free, the build produces the artefact, no
+theorem escapes through `sorry`/`axiom`/`native_decide`, and every axiom set is
+within `{propext, Classical.choice, Quot.sound}`.
+
+---
+
+## Ruschlikon / ACORD GRLC
+
+`Acord.lean` classifies every audit as `AGD`, `AGD_OFFSET`, `QRY` or `REJ`.
+`server/acord_adapter.py` parses authentic `<Jv-Ins-Reinsurance Version="2016-1">`
+messages (`ClaimMovement` → `ReferredContract` → `Claim` → `ClaimEntry` →
+`ClaimMovementAmtItem`) and still accepts the flat tag layout, then emits a
+`ClaimMovementResponse` with `<AcknowledgementStatus>` and both ledger legs.
+XML with a `DOCTYPE` or `ENTITY` declaration is rejected before parsing.
+
+---
+
+## Universal intake
+
+Drop a PDF, an ACORD message, or paste a broker email. Three panels come back:
+the extracted text, the exact compilable Lean 4 definitions for that certificate
+and claim, and the plain-English back-translation of what was verified. Amber
+warnings list clauses the model cannot represent — hammer, punitive damages,
+consent to settle, PFAS, subrogation and others. An optional `OPENAI_API_KEY`
+pass may annotate extraction; Lean still performs every validation.
+
+---
+
+## Four eyes, and a tamper-evident trail
+
+Subjective clauses — declaratory judgment fees, hammer / consent to settle,
+punitive damages, policy-period certification — cannot be auto-wired. They
+require a claims examiner **and** a technical accountant, with different names.
+The kernel proves self-approval is rejected and that an unattested requirement
+always holds the wire.
+
+Every sign-off and audit event is appended to a SHA-256 hash chain in SQLite
+(`data/cockpit_audit.db`). `GET /api/audit-ledger` re-verifies every link from
+the genesis hash and reports `chainIntact`.
+
+---
+
+## Quarterly bordereau
+
+Upload a carrier loss bordereau CSV (24 claims in the sample) and the whole book
+is audited in one Lean call: clean STP rows, premium-offset rows, disputed rows
+and four-eyes holds. The batch exports a balanced SAP FS-RI / IFRS 17 posting
+CSV with debit/credit lines for every authorized wire and OSLR movement.
+
+---
+
+## Verification
 
 ```bash
-lake exe cockpit fac-audit examples/us_facultative_desk.json
-lake exe cockpit fac-audit examples/us_facultative_desk.json --json
-```
-
-### API
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/fac-presets` | four certificates, four cash calls, PDF links, Lean summary |
-| POST | `/api/fac-audit` | audit any bundle, returns the report plus a 4-step workflow trace |
-| GET | `/api/fac-slips/<name>` | the original cedent cash-call PDF |
-
-### Web workspace
-
-Three tabs: **US Facultative Accounting Desk** (default), **Treaty Portfolio &
-Solvency Cockpit** (all v0.1–v0.4 panels), and **How It Works** (plain-English
-guide for accounting colleagues). The desk shows a summary strip, four case
-chips with PDF links, an editable calculator, the four autonomous steps, a
-debit/credit voucher, and a copyable broker memo.
-
----
-
-## How to trust "checked in Lean" — the Xena / Buzzard four-question audit
-
-A proof is only worth what its *statement* is worth. The repository is arranged
-so that a sceptical reviewer can answer Kevin Buzzard's four questions without
-reading a single tactic.
-
-**Q1 — Can I read the statements?** `ReinsuranceLeanCockpit/TrustBoundary.lean`
-is under 100 lines, contains **no proof tactics at all**, and declares eight
-named `Prop` specifications with plain-English docstrings: no over-recovery,
-tower conservation, payout monotonicity, tower monotonicity, post-season
-solvency antitonicity, gatekeeper exactness, the universal FX fix, and a
-non-vacuity witness. Read that file and you know exactly what is claimed.
-
-**Q2 — Does the build produce the artefact?** `lakefile.toml` lists `cockpit` in
-`defaultTargets`, so a plain `lake build` produces `.lake/build/bin/cockpit`.
-`server/app.py` additionally rebuilds it on startup if it is missing.
-
-**Q3 — Is the proof real, or did it escape through a hatch?**
-`scripts/paranoid_audit.py` scans every Lean source for `sorry`, `admit`,
-`axiom`, `opaque`, `unsafe`, `@[extern`, `@[implemented_by` and `native_decide`
-(comments stripped), then parses every `#print axioms` line and fails if any
-theorem depends on anything outside `{propext, Classical.choice, Quot.sound}` —
-in particular `sorryAx`, `Lean.ofReduceBool` or `Lean.trustCompiler`. It also
-asserts that every theorem in the in-app registry is axiom-audited, so the
-registry cannot overstate what was checked.
-
-**Q4 — Was it replayed by an independent kernel?** If `lean4checker` or
-`comparator` is on `PATH` the audit invokes it; otherwise it prints the exact
-external replay command (`lake comparator --paranoid`). This environment has
-neither installed, and the audit says so rather than claiming otherwise.
-
-### The non-vacuity trap
-
-`Spec_NonVacuityWitness` exists because a suite of universally quantified
-statements is trivially true if `isValid` is never satisfiable. `TrustProofs.lean`
-discharges it with a concrete 40M xs 10M layer and lets the **kernel compute**
-that a 40,000,000 loss pays 30,000,000 — `by decide`, not by restatement. If
-someone later changes `isValid` to `false`, that proof stops compiling.
-
-### Lost in translation: the back-translator and the divergence scanner
-
-A PDF says more than `BoundContract` can hold. Two mechanisms make the gap
-visible instead of silent:
-
-* `informalizeContract` (in `Validation.lean`) renders what Lean *actually
-  modelled* as English: direction, form, counterparty and rating, currency,
-  perils, priority, attachment, limit, aggregate, reinstatement rate, and an
-  explicit scope note. Available as `lake exe cockpit informalize <contract.json>`.
-* `server/slip_parser.py` scans the extracted text for clauses with no AST
-  representation — `franchise`, `hours clause`, `72 hours`, `168 hours`,
-  `excluding`, `sub-limit`, `cyber war`, `terrorism`, `inuring to`,
-  `loss corridor` — and returns `translationWarnings`.
-
-`SLIP_04_Lost_In_Translation_Hours_Excl.pdf` is the demonstration: an XoL slip
-whose numbers pass the gatekeeper, but whose wording contains a 72 hours clause
-and a Florida exclusion. The UI shows the three-way view — extracted text, Lean
-back-translation, divergence warnings — so the reviewer sees that Lean proved
-something *narrower* than the slip says.
-
----
-
-## v0.4 — why the solvency ratio could misbehave
-
-The v0.3 simulator reported `ownFunds / (netLoss + reinstatement + SCR)`. Capital
-never moved, and the loss appeared in the *denominator*, so the ratio fell while
-losses were below the stop-loss attachment and then **stopped changing entirely**
-once every inward limit and the stop loss bound. Measured on the as-bound book:
-
-| Ground-up | v0.3 ratio | v0.4 post-season ratio |
-|---|---|---|
-| $0 | 634% | 203% |
-| $25M | 308% | 169% |
-| $100M | 308% | 169% |
-| $500M | 308% | 169% |
-
-A ratio that is flat from $25M to $500M reads as "this loss does not matter",
-which is the accounting error underneath: a realised catastrophe does not merely
-add to a requirement, it consumes capital.
-
-v0.4 changes the physics, not the display:
-
-* `seasonLossDrainEur := annualFinalNetLossEur + totalReinstFeeEur`
-* `postSeasonOwnFundsEur := initialOwnFundsEur − drain` (truncated at zero)
-* `postSeasonScrEur := otherScrEur + counterpartyScrEur + maxSingleEventAppetiteEur`
-* `solvencyRatioPct := postSeasonOwnFunds / postSeasonScr` (headline)
-* `preSeasonSolvencyRatioPct` keeps the old build-up for comparison
-
-Aggregate limits now erode per contract across the season, and each layer's
-reinstatement premium is charged on **what that layer actually pays**, not on the
-pre-tower gross.
-
-`Monotonicity.lean` proves the three layers of the argument: each contract form
-is monotone in the loss (payout and net), the inuring tower preserves it by
-induction, and post-season capital/ratio are antitone in the drain.
-
----
-
-## Quickstart
-
-```bash
-# 1. build the kernel-checked engine
-lake build
-
-# 2. build the sample PDF slips (pure Python, no pip installs)
-python3 scripts/generate_sample_pdfs.py
-
-# 3. run the cockpit
-python3 server/app.py            # PORT=8080 by default
-# → open http://localhost:8080
-```
-
-CLI, unchanged from v0.2 plus two new modes:
-
-```bash
-lake exe cockpit
-lake exe cockpit audit examples/continental_re_portfolio.json
-lake exe cockpit audit examples/continental_re_portfolio.json --json
-lake exe cockpit simulate examples/continental_re_portfolio.json \
-                          examples/scenarios/global_twin_cat_fx_shock.json [--json]
-lake exe cockpit theorems [--json]
-lake exe cockpit informalize examples/slips/parsed_contract.json
-```
-
----
-
-## The pipeline, step by step
-
-**1. Extract.** `server/slip_parser.py` reads a PDF (or `.txt`) and pulls the
-labelled MRC fields out of the `BT … ET` text blocks, decompressing Flate streams
-when present. It is not a general PDF reader; it reads the one thing a slip
-contains and reports what it could not find instead of guessing.
-
-**2. Admit.** `ReinsuranceLeanCockpit/Validation.lean` is the gate. A contract
-with `shareBps = 11500` is not merely implausible — it falls outside
-`evalContractPayout_le_loss`, whose hypothesis is `c.isValid = true`. The gate
-returns exactly the blocking errors, and
-
-```lean
-theorem validateContract_isEmpty_iff (c : BoundContract) :
-    (validateContract c).isEmpty = c.isValid
-```
-
-guarantees the gate and the theorem precondition are the same predicate, not two
-implementations that happen to agree today.
-
-**3. Scan.** `Diagnostics.lean` reports five structural classes: vertical tower
-gaps, tower overlaps, currency basis mismatch, aggregate exhaustion, and
-counterparty credit cliffs. Only *adjacent* layers are compared, so a layer that
-fills a gap suppresses the false positive.
-
-**4. Simulate.** `Simulation.lean` prices a season: each event is converted into
-every inward contract's currency, priced, converted back to EUR, and passed down
-the outward tower in inuring order. Stop losses then apply to the season total.
-
----
-
-## What is proved
-
-92 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
-
-| Theorem | Statement |
-|---|---|
-| `evalContractPayout_le_loss` | every valid contract, of any of the four forms, pays at most the loss |
-| `applyInuringTower_conservation` | **by induction:** net retained + total recovered = gross, for a tower of any depth |
-| `applyInuringTower_recovered_le` | **by induction:** total recoveries never exceed the gross loss |
-| `applyInuringTower_net_le` | net retained never exceeds the gross loss |
-| `xolPayout_le_loss` / `xolPayout_bounded` | a layer never pays more than the loss or its limits |
-| `xol_loss_conservation` | net + ceded = gross for one layer |
-| `qsPayout_le_loss` | quota share bounded when the share is at most 100% |
-| `surplusPayout_le_loss` / `stopLossPayout_le_loss` | the two added forms are bounded |
-| `stepXoLTreaty_agg_safe` | one treaty step partitions aggregate capacity exactly |
-| `alpine_safe_at_inception_fx` / `alpine_fixed_fx_safe` | the FX case study, for every loss and every rate |
-| `isPortfolioValid_forall` | **the gate implies the theorem precondition, for every contract in a portfolio** |
-| `validateContract_isEmpty_iff` | the gate's error list is empty exactly when the contract is valid |
-| `portfolioStress_totalScr` | the printed SCR total equals its components |
-| `scenarioReport_scr_sum` | the simulator's SCR total equals its four components |
-| `netAfterStopLoss_conservation` | the stop loss moves money, it does not make it |
-| `tally_sum` / `auditPortfolio_counts_sum` | severity counts partition the findings |
-| `evalContractPayout_mono` | every valid contract's payout is monotone in the loss |
-| `evalContractNet_mono` | every valid contract's net retention is monotone in the loss |
-| `applyInuringTower_net_mono` | **by induction:** a bigger gross loss leaves a bigger net retained loss |
-| `postSeasonOwnFunds_antitone` | a bigger drain leaves less capital |
-| `postSeasonRatio_antitone` | a bigger drain **or requirement** can only lower the post-season ratio |
-| `verified_NoOverRecovery` … `verified_NonVacuityWitness` | the eight trust-boundary specifications, discharged at their exact declared types |
-| `solvencyRatioPct_mono_ownFunds` | adding capital never lowers the ratio |
-
-`scripts/AxiomAudit.lean` runs `#print axioms` over the headline set; nothing
-depends on `sorryAx`, and the strongest entries rest on `propext` and
-`Quot.sound` alone.
-
----
-
-## The web cockpit
-
-Five panels, vanilla HTML/CSS/JS, no framework and no build step:
-
-1. **Header + portfolio bar** — live theorem count fetched from
-   `GET /api/theorems`, kernel latency per request, and a preset switcher
-   (as-bound 94% breach vs restructured 168% solvent).
-2. **Solvency gauge** — SVG semicircle, stacked SCR bar, KPI strip including the
-   gatekeeper verdict.
-3. **Tower visualiser** — per-peril tabs, inward layers against the outward
-   tower, scaled by attachment and limit, with unhedged gaps drawn as striped
-   red blocks and BBB/Unrated layers badged.
-4. **Slip validator** — drag-and-drop or three one-click demo PDFs. Binding the
-   gap-closer removes the red block; the Cayman slip adds a credit cliff; the
-   115% quota share is rejected with the failing bound quoted.
-5. **Simulator + proof registry** — editable FX rates and event list, a live
-   `POST /api/simulate`, and the collapsible table of all 92 theorems.
-
-### API
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/health` | liveness + whether the Lean binary is present |
-| GET | `/api/theorems` | kernel proof registry |
-| GET | `/api/presets` | portfolios, default scenario, sample slips |
-| POST | `/api/audit` | run `cockpit audit --json` on a posted portfolio |
-| POST | `/api/simulate` | run `cockpit simulate --json` |
-| POST | `/api/parse-slip` | parse a PDF/base64 slip, optionally bind + re-audit |
-| GET | `/api/slips/<name>` | serve the raw PDF |
-
-Every POST writes to a `tempfile`, invokes the binary with a 10 s timeout,
-deletes the temp file, and returns the Lean JSON plus `leanExecMs`.
-
----
-
-## Sample PDF slips
-
-Generated by `scripts/generate_sample_pdfs.py`, a pure-stdlib PDF 1.4 writer
-with a correct `xref` table:
-
-| Slip | What it proves |
-|---|---|
-| `SLIP_01_Valid_Gap_Closer_USD.pdf` | 10M USD xs 20M closes the vertical gap between Layer 1 (ends 20M) and Layer 2 (attaches 30M). Findings fall; the gap disappears. |
-| `SLIP_02_Trap_Unrated_FX_Mismatch.pdf` | Unrated Cayman cell, EUR-denominated against JPY inward business. Adds a `CounterpartyCreditCliff` and leaves the currency mismatch standing. |
-| `SLIP_03_Illegal_115pct_QuotaShare.pdf` | `Share_Bps: 11500`. The gate rejects it and names the violated bound. |
-| `SLIP_04_Lost_In_Translation_Hours_Excl.pdf` | Numbers pass, wording does not: 72 hours clause and a Florida exclusion are flagged as unmodelled. |
-
-`server/slip_parser.py` round-trips all three back into the exact JSON schema
-`Ingestion.lean` expects.
-
----
-
-## End-to-end test
-
-```bash
+rm -rf .lake data/cockpit_audit.db && lake build
+python3 scripts/paranoid_audit.py
+python3 scripts/verify_ui_integrity.py
 python3 scripts/test_e2e.py
+python3 scripts/fuzz_stress_suite.py
 ```
 
-Starts the real handler on an ephemeral port and asserts: health, ≥32 theorems,
-presets, 94%/breach and 168%/0-findings audits, all three slips (gap closure,
-new credit cliff, gatekeeper rejection), simulation conservation
-(`netBefore + recovered == gross`), and `application/pdf` delivery.
+* `paranoid_audit.py` — Buzzard Q1–Q4: auditable statements, artefact, axiom
+  hygiene, optional independent kernel replay.
+* `verify_ui_integrity.py` — JS parses, every element id exists, every button is
+  styled, every API route the UI calls is implemented, versions agree.
+* `test_e2e.py` — the full HTTP surface, including four-eyes segregation and the
+  24-claim bordereau.
+* `fuzz_stress_suite.py` — 500 randomized certificates plus security probes
+  (XXE, oversized bodies, path traversal, cache headers).
 
 ---
 
-## Deliberate simplifications
+## Deployment
 
-* The SCR is a deterministic stress build-up, not the Standard Formula.
-* The simulated stress loss is the book's own maximum unhedged single-event
-  exposure; it is not a return-period loss.
-* Counterparty charges apply to full outward aggregate capacity, undiscounted.
-* FX is one rate per currency per request; no volatility, no basis, no hedge.
-* Perils gate applicability by membership; event-window aggregation from the
-  v0.1 hours clause is not yet wired into `BoundContract`.
-* The PDF extractor handles simple text-layer PDFs, not scanned images or
-  complex encodings.
-* The divergence scanner is lexical. It catches the clauses it lists, not every
-  clause a lawyer could write; `translationWarnings` is a prompt to read the
-  wording, not a certificate that the wording is modelled.
-* The solvency sweep plateaus once every inward limit and the stop loss bind
-  (about $80M ground-up on the sample book). That is the correct shape for this
-  portfolio, not a monotonicity failure: the ratio stops falling because the
-  loss stops growing.
+`Dockerfile` is multi-stage: the builder installs elan, builds, generates the
+sample PDFs and runs the paranoid audit, so **a failing proof fails the image**.
+`render.yaml` is a Render blueprint; `docs/DEPLOYMENT.md` covers Fly.io, Railway
+and a VPS.
+
+---
 
 ## Repository layout
 
-```text
+```
 ReinsuranceLeanCockpit/
-  Core.lean  Solvency.lean  AlpineShowcase.lean      # v0.1
-  Contracts.lean  Diagnostics.lean                   # v0.2
-  Validation.lean  Simulation.lean  Ingestion.lean   # v0.3
-  Monotonicity.lean                                  # v0.4
-  TrustBoundary.lean  TrustProofs.lean               # v0.4 trust architecture
-  Facultative.lean                                   # v0.5 US facultative desk
+  Core.lean  Solvency.lean  AlpineShowcase.lean
+  Contracts.lean  Diagnostics.lean  Validation.lean
+  Simulation.lean  Monotonicity.lean  TrustBoundary.lean  TrustProofs.lean
+  Facultative.lean  Acord.lean  Subjectivity.lean  GroupBridge.lean
+  Ingestion.lean
 Main.lean
-server/app.py  server/slip_parser.py
-web/index.html  web/styles.css  web/app.js
-scripts/generate_sample_pdfs.py  scripts/test_e2e.py
-scripts/AxiomAudit.lean  scripts/paranoid_audit.py  docs/USER_GUIDE.md
-examples/continental_re_portfolio.json  examples/continental_re_fixed.json
-examples/scenarios/global_twin_cat_fx_shock.json
-examples/slips/*.pdf  examples/slips/*.txt
-examples/fac_slips/*.pdf  examples/us_facultative_desk.json
+server/   app.py  slip_parser.py  acord_adapter.py  fac_intake.py
+          bordereau_processor.py  audit_ledger.py
+web/      index.html  styles.css  app.js
+scripts/  generate_sample_pdfs.py  paranoid_audit.py  test_e2e.py
+          verify_ui_integrity.py  fuzz_stress_suite.py  AxiomAudit.lean
+examples/ us_facultative_desk.json  slips/  fac_slips/  fac_intake/
+          acord/  bordereaux/
+docs/     USER_GUIDE.md  DEPLOYMENT.md
 ```
 
 ## License
