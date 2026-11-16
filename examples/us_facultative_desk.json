@@ -9,7 +9,11 @@
       "attachmentUsd": 500000,
       "occLimitUsd": 500000,
       "signedShareBps": 10000,
-      "alaeClause": "proRataInAddition"
+      "alaeClause": "proRataInAddition",
+      "grossPremiumUsd": 0,
+      "brokerageBps": 0,
+      "paidPremiumToDateUsd": 0,
+      "insuredGroup": "Midwest Logistics Group"
     },
     {
       "certId": "FAC-DO-02",
@@ -19,7 +23,11 @@
       "attachmentUsd": 10000000,
       "occLimitUsd": 10000000,
       "signedShareBps": 2000,
-      "alaeClause": "includedInLimit"
+      "alaeClause": "includedInLimit",
+      "grossPremiumUsd": 0,
+      "brokerageBps": 0,
+      "paidPremiumToDateUsd": 0,
+      "insuredGroup": "Apex BioTech Group"
     },
     {
       "certId": "FAC-WCA-03",
@@ -29,7 +37,11 @@
       "attachmentUsd": 500000,
       "occLimitUsd": 500000,
       "signedShareBps": 10000,
-      "alaeClause": "excluded"
+      "alaeClause": "excluded",
+      "grossPremiumUsd": 0,
+      "brokerageBps": 0,
+      "paidPremiumToDateUsd": 0,
+      "insuredGroup": "Midwest Logistics Group"
     },
     {
       "certId": "FAC-GL-04",
@@ -39,7 +51,39 @@
       "attachmentUsd": 500000,
       "occLimitUsd": 500000,
       "signedShareBps": 10000,
-      "alaeClause": "proRataInAddition"
+      "alaeClause": "proRataInAddition",
+      "grossPremiumUsd": 0,
+      "brokerageBps": 0,
+      "paidPremiumToDateUsd": 0,
+      "insuredGroup": "Tri-State Builders Group"
+    },
+    {
+      "certId": "FAC-AL-05",
+      "insuredName": "Ohio Plant Logistics Inc.",
+      "cedentName": "Continental Re",
+      "line": "AutoLiability",
+      "attachmentUsd": 500000,
+      "occLimitUsd": 500000,
+      "signedShareBps": 10000,
+      "alaeClause": "proRataInAddition",
+      "grossPremiumUsd": 0,
+      "brokerageBps": 0,
+      "paidPremiumToDateUsd": 0,
+      "insuredGroup": "Ohio Plant Group"
+    },
+    {
+      "certId": "FAC-GL-06",
+      "insuredName": "Midwest Pileup Haulage LLC",
+      "cedentName": "Continental Re",
+      "line": "GeneralLiability",
+      "attachmentUsd": 500000,
+      "occLimitUsd": 500000,
+      "signedShareBps": 10000,
+      "alaeClause": "proRataInAddition",
+      "grossPremiumUsd": 60000,
+      "brokerageBps": 1500,
+      "paidPremiumToDateUsd": 0,
+      "insuredGroup": "Midwest Logistics Group"
     }
   ],
   "claims": [
@@ -47,37 +91,85 @@
       "claimId": "CC-AL-01",
       "certId": "FAC-AL-01",
       "lossDesc": "Fleet collision, multiple claimants",
-      "groundUpIndemnityUsd": 450000,
-      "groundUpAlaeUsd": 180000,
+      "paidIndemnityUsd": 450000,
+      "paidAlaeUsd": 180000,
+      "oslrIndemnityUsd": 0,
+      "oslrAlaeUsd": 0,
       "priorPaidUsd": 0,
-      "cedentBilledNowUsd": 130000
+      "priorOslrBookedUsd": 0,
+      "cedentBilledNowUsd": 130000,
+      "applyPremiumOffset": false,
+      "clashEventTag": ""
     },
     {
       "claimId": "CC-DO-02",
       "certId": "FAC-DO-02",
       "lossDesc": "Securities class action defence",
-      "groundUpIndemnityUsd": 16000000,
-      "groundUpAlaeUsd": 6000000,
+      "paidIndemnityUsd": 16000000,
+      "paidAlaeUsd": 6000000,
+      "oslrIndemnityUsd": 0,
+      "oslrAlaeUsd": 0,
       "priorPaidUsd": 0,
-      "cedentBilledNowUsd": 2400000
+      "priorOslrBookedUsd": 0,
+      "cedentBilledNowUsd": 2400000,
+      "applyPremiumOffset": false,
+      "clashEventTag": ""
     },
     {
       "claimId": "CC-WCA-03",
       "certId": "FAC-WCA-03",
       "lossDesc": "Cumulative indemnity, Q1-Q3",
-      "groundUpIndemnityUsd": 850000,
-      "groundUpAlaeUsd": 0,
+      "paidIndemnityUsd": 850000,
+      "paidAlaeUsd": 0,
+      "oslrIndemnityUsd": 0,
+      "oslrAlaeUsd": 0,
       "priorPaidUsd": 200000,
-      "cedentBilledNowUsd": 350000
+      "priorOslrBookedUsd": 0,
+      "cedentBilledNowUsd": 350000,
+      "applyPremiumOffset": false,
+      "clashEventTag": "EVENT-MIDWEST-PILEUP"
     },
     {
       "claimId": "CC-GL-04",
       "certId": "FAC-GL-04",
       "lossDesc": "Construction site injury",
-      "groundUpIndemnityUsd": 750000,
-      "groundUpAlaeUsd": 90000,
+      "paidIndemnityUsd": 750000,
+      "paidAlaeUsd": 90000,
+      "oslrIndemnityUsd": 0,
+      "oslrAlaeUsd": 0,
       "priorPaidUsd": 0,
-      "cedentBilledNowUsd": 280000
+      "priorOslrBookedUsd": 0,
+      "cedentBilledNowUsd": 280000,
+      "applyPremiumOffset": false,
+      "clashEventTag": ""
+    },
+    {
+      "claimId": "CC-AL-05",
+      "certId": "FAC-AL-05",
+      "lossDesc": "Ohio plant multi-vehicle loss, reserve still open",
+      "paidIndemnityUsd": 400000,
+      "paidAlaeUsd": 40000,
+      "oslrIndemnityUsd": 350000,
+      "oslrAlaeUsd": 50000,
+      "priorPaidUsd": 0,
+      "priorOslrBookedUsd": 0,
+      "cedentBilledNowUsd": 250000,
+      "applyPremiumOffset": false,
+      "clashEventTag": ""
+    },
+    {
+      "claimId": "CC-GL-06",
+      "certId": "FAC-GL-06",
+      "lossDesc": "Midwest pileup, net premium still unpaid",
+      "paidIndemnityUsd": 700000,
+      "paidAlaeUsd": 0,
+      "oslrIndemnityUsd": 0,
+      "oslrAlaeUsd": 0,
+      "priorPaidUsd": 0,
+      "priorOslrBookedUsd": 0,
+      "cedentBilledNowUsd": 200000,
+      "applyPremiumOffset": true,
+      "clashEventTag": "EVENT-MIDWEST-PILEUP"
     }
   ]
 }

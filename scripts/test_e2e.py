@@ -257,17 +257,21 @@ def main() -> int:
             ),
         )
 
-        # ---- US facultative desk -------------------------------------------
+        # ---- US facultative desk (v0.6) ------------------------------------
         fac = request(base, "/api/fac-presets")
-        check("GET /api/fac-presets: 4 US facultative cases", len(fac["cases"]) == 4)
+        check("GET /api/fac-presets: 6 US facultative cases", len(fac["cases"]) == 6)
+        report0 = fac["report"]
         check(
-            "fac presets: billed / verified / overbilled totals",
-            fac["report"]["totalBilledUsd"] == 3_160_000
-            and fac["report"]["totalVerifiedUsd"] == 2_430_000
-            and fac["report"]["totalOverbilledUsd"] == 730_000,
-            str(fac["report"]["totalBilledUsd"]),
+            "fac presets: billed / cash verified / leakage totals",
+            report0["totalBilledUsd"] == 3_610_000
+            and report0["totalVerifiedUsd"] == 2_630_000
+            and report0["totalOverbilledUsd"] == 980_000,
+            f"{report0['totalBilledUsd']}/{report0['totalVerifiedUsd']}/{report0['totalOverbilledUsd']}",
         )
-        check("fac presets: 3 of 4 disputed", fac["report"]["disputeCount"] == 3)
+        check("fac presets: 4 of 6 disputed", report0["disputeCount"] == 4)
+        check("fac presets: premium offset total 51,000", report0["totalPremiumOffsetUsd"] == 51_000)
+        check("fac presets: net wire total 2,579,000", report0["totalNetWireUsd"] == 2_579_000)
+        check("fac presets: ending OSLR total 280,000", report0["totalEndingOslrUsd"] == 280_000)
 
         for case in fac["cases"]:
             with urllib.request.urlopen(base + case["pdfUrl"]) as res:
@@ -277,30 +281,43 @@ def main() -> int:
 
         fac_audit = request(base, "/api/fac-audit", {"bundle": fac["bundle"]})
         expected = {
-            "FAC-AL-01": (0, 130_000, "DISPUTE_OVERBILLED"),
-            "FAC-DO-02": (2_000_000, 400_000, "DISPUTE_OVERBILLED"),
-            "FAC-WCA-03": (150_000, 200_000, "DISPUTE_OVERBILLED"),
-            "FAC-GL-04": (280_000, 0, "APPROVED_EXACT"),
+            "FAC-AL-01": (0, 130_000, "DISPUTE_OVERBILLED", "QRY"),
+            "FAC-DO-02": (2_000_000, 400_000, "DISPUTE_OVERBILLED", "QRY"),
+            "FAC-WCA-03": (150_000, 200_000, "DISPUTE_OVERBILLED", "QRY"),
+            "FAC-GL-04": (280_000, 0, "APPROVED_EXACT", "AGD"),
+            "FAC-AL-05": (0, 250_000, "DISPUTE_PREMATURE_OSLR_CASHCALL", "QRY"),
+            "FAC-GL-06": (200_000, 0, "APPROVED_EXACT", "AGD_OFFSET"),
         }
         for row in fac_audit["results"]:
-            verified_usd, over_usd, verdict = expected[row["certId"]]
+            cash, over_usd, verdict, code = expected[row["certId"]]
             check(
                 f"fac audit {row['certId']}: {verdict}",
-                row["verifiedIncrementalDueUsd"] == verified_usd
+                row["grossCashPayableNowUsd"] == cash
                 and row["overbilledUsd"] == over_usd
-                and row["verdict"] == verdict,
-                f"verified={row['verifiedIncrementalDueUsd']} over={row['overbilledUsd']} verdict={row['verdict']}",
+                and row["verdict"] == verdict
+                and row["acordResponseCode"] == code,
+                f"cash={row['grossCashPayableNowUsd']} over={row['overbilledUsd']} code={row['acordResponseCode']}",
             )
             check(
-                f"fac journal balanced: {row['certId']}",
-                row["journal"]["totalDebitUsd"] == row["journal"]["totalCreditUsd"],
+                f"fac voucher balanced: {row['certId']}",
+                row["voucher"]["grandTotalDebitUsd"] == row["voucher"]["grandTotalCreditUsd"]
+                and row["voucher"]["cashTotalDebitUsd"] == row["voucher"]["cashTotalCreditUsd"],
+            )
+            check(
+                f"fac paid+OSLR=incurred: {row['certId']}",
+                row["ourCumulativePaidUsd"] + row["verifiedEndingOslrUsd"] == row["ourCumulativeIncurredUsd"],
             )
             check(f"fac memo non-empty: {row['certId']}", len(row["brokerMemo"]) > 100)
-        check("fac workflow trace has 4 steps", len(fac_audit["workflowTrace"]) == 4)
+            check(f"fac lean spec generated: {row['certId']}", "auditFacClaim certificate claim" in row["leanSpecCode"])
+
+        oslr_row = next(r for r in fac_audit["results"] if r["certId"] == "FAC-AL-05")
+        check("fac case 5 books 280,000 OSLR with zero cash", oslr_row["verifiedEndingOslrUsd"] == 280_000 and oslr_row["netCashWireDueUsd"] == 0)
+        offset_row = next(r for r in fac_audit["results"] if r["certId"] == "FAC-GL-06")
         check(
-            "fac trace names the Lean verifier",
-            "Lean 4" in fac_audit["workflowTrace"][1]["name"],
+            "fac case 6 offsets 51,000 and wires 149,000",
+            offset_row["premiumOffsetUsd"] == 51_000 and offset_row["netCashWireDueUsd"] == 149_000,
         )
+        check("fac workflow trace has 4 steps", len(fac_audit["workflowTrace"]) == 4)
 
         custom = json.loads(json.dumps(fac["bundle"]))
         custom["claims"][3]["cedentBilledNowUsd"] = 260_000

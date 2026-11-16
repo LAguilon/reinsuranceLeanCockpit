@@ -63,4 +63,10 @@ theorem verified_FacNoOverRecovery : Spec_FacNoOverRecovery :=
 theorem verified_FacJournalBalanced : Spec_FacJournalBalanced :=
   fun c s => facJournal_balanced c s
 
+theorem verified_PaidOslrConservation : Spec_PaidOslrConservation :=
+  fun c s => paid_plus_endingOslr_eq_incurred c s
+
+theorem verified_FacFullVoucherBalanced : Spec_FacFullVoucherBalanced :=
+  fun c s => fullFacVoucher_balanced c s
+
 end ReinsuranceLeanCockpit

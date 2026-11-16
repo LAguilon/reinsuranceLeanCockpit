@@ -809,16 +809,22 @@ function renderFacSteps(r, trace) {
     )
     .join("");
 
-  const j = r.journal;
+  const v = r.voucher;
   $("#facJournal tbody").innerHTML = `
-    <tr><td>Debit · Ceded indemnity (incremental)</td><td class="num">${usd(j.debitIndemnityIncrementalUsd)}</td><td class="num">—</td></tr>
-    <tr><td>Debit · Ceded ALAE (incremental)</td><td class="num">${usd(j.debitAlaeIncrementalUsd)}</td><td class="num">—</td></tr>
-    <tr><td>Credit · Cedent payable</td><td class="num">—</td><td class="num">${usd(j.creditCedantPayableUsd)}</td></tr>`;
-  const balanced = j.totalDebitUsd === j.totalCreditUsd;
+    <tr class="leg-head"><td colspan="3">Leg A · cash settlement</td></tr>
+    <tr><td>Debit · Paid claims expense</td><td class="num">${usd(v.debitPaidClaimsExpenseUsd)}</td><td class="num">—</td></tr>
+    <tr><td>Credit · Premium receivable offset</td><td class="num">—</td><td class="num">${usd(v.creditPremiumReceivableOffsetUsd)}</td></tr>
+    <tr><td>Credit · Cash wire payable</td><td class="num">—</td><td class="num">${usd(v.creditCashWirePayableUsd)}</td></tr>
+    <tr class="leg-head"><td colspan="3">Leg B · case reserve (OSLR / LIC) movement</td></tr>
+    <tr><td>Debit · OSLR expense</td><td class="num">${usd(v.debitOslrExpenseUsd)}</td><td class="num">—</td></tr>
+    <tr><td>Credit · OSLR liability</td><td class="num">—</td><td class="num">${usd(v.creditOslrLiabilityUsd)}</td></tr>
+    <tr><td>Debit · OSLR liability release</td><td class="num">${usd(v.debitOslrLiabilityReleaseUsd)}</td><td class="num">—</td></tr>
+    <tr><td>Credit · OSLR expense release</td><td class="num">—</td><td class="num">${usd(v.creditOslrExpenseReleaseUsd)}</td></tr>`;
+  const balanced = v.grandTotalDebitUsd === v.grandTotalCreditUsd;
   $("#facJournal tfoot").innerHTML = `
-    <tr class="total-row"><td>Total ${balanced ? "· BALANCED" : "· OUT OF BALANCE"}</td>
-      <td class="num ${balanced ? "ok" : "danger"}">${usd(j.totalDebitUsd)}</td>
-      <td class="num ${balanced ? "ok" : "danger"}">${usd(j.totalCreditUsd)}</td></tr>`;
+    <tr class="total-row"><td>Grand total ${balanced ? "· BALANCED" : "· OUT OF BALANCE"}</td>
+      <td class="num ${balanced ? "ok" : "danger"}">${usd(v.grandTotalDebitUsd)}</td>
+      <td class="num ${balanced ? "ok" : "danger"}">${usd(v.grandTotalCreditUsd)}</td></tr>`;
 
   $("#facMemo").textContent = r.brokerMemo;
   $("#facLatency").textContent = trace ? `verified in ${trace} ms` : "";

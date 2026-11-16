@@ -106,3 +106,13 @@ open ReinsuranceLeanCockpit
 #print axioms facBilled_reconciles
 #print axioms verified_FacNoOverRecovery
 #print axioms verified_FacJournalBalanced
+
+/-! ### v0.6 — paid vs OSLR, premium offset, multi-leg voucher -/
+
+#print axioms netPremiumDue_le_gross
+#print axioms paid_plus_endingOslr_eq_incurred
+#print axioms cashSettlement_balanced
+#print axioms oslrMovement_balanced
+#print axioms fullFacVoucher_balanced
+#print axioms verified_PaidOslrConservation
+#print axioms verified_FacFullVoucherBalanced

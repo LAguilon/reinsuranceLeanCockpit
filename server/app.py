@@ -148,6 +148,10 @@ FAC_CASE_LABELS = {
                    "FAC-WCA-03_Workers_Comp_Cash_Call.pdf"),
     "FAC-GL-04": ("General Liability", "$500k xs $500k", "ALAE Pro-Rata in Addition",
                   "FAC-GL-04_General_Liability_Cash_Call.pdf"),
+    "FAC-AL-05": ("Auto Liability", "$500k xs $500k", "OSLR trap: paid below attachment",
+                  "FAC-AL-05_Premature_OSLR_Cash_Call.pdf"),
+    "FAC-GL-06": ("General Liability", "$500k xs $500k", "Premium offset + clash tag",
+                  "FAC-GL-06_Premium_Offset_Pileup.pdf"),
 }
 
 

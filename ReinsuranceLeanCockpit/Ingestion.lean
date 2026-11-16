@@ -542,14 +542,28 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "verified_FacNoOverRecovery" "TrustProofs"
       "Discharges Spec_FacNoOverRecovery for the US facultative desk."
   , theoremRecord "verified_FacJournalBalanced" "TrustProofs"
-      "Discharges Spec_FacJournalBalanced: debits always equal credits." ]
+      "Discharges Spec_FacJournalBalanced: the cash leg always balances."
+  , theoremRecord "netPremiumDue_le_gross" "Facultative"
+      "Net premium never exceeds gross premium: brokerage can only reduce it."
+  , theoremRecord "paid_plus_endingOslr_eq_incurred" "Facultative"
+      "Paid plus ending case reserve equals incurred, for every claim."
+  , theoremRecord "cashSettlement_balanced" "Facultative"
+      "Cash payable equals premium offset plus net wire."
+  , theoremRecord "oslrMovement_balanced" "Facultative"
+      "Case-reserve increases and releases balance on both sides."
+  , theoremRecord "fullFacVoucher_balanced" "Facultative"
+      "The full two-leg voucher has total debits equal to total credits."
+  , theoremRecord "verified_PaidOslrConservation" "TrustProofs"
+      "Discharges Spec_PaidOslrConservation: paid plus OSLR equals incurred."
+  , theoremRecord "verified_FacFullVoucherBalanced" "TrustProofs"
+      "Discharges Spec_FacFullVoucherBalanced: the two-leg voucher balances." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)
 
 def theoremCount : Nat := verifiedTheorems.length
 
-/-! ## US facultative desk codecs -/
+/-! ## US facultative desk codecs (v0.6) -/
 
 def facLineOfString? : String → Option FacLine
   | "AutoLiability" | "AL" => some .AutoLiability
@@ -564,8 +578,16 @@ def alaeOfString? : String → Option AlaeClause
   | "excluded" | "Excluded" => some .excluded
   | _ => none
 
+def stpOfString? : String → Option RuschlikonStatus
+  | "STP_AUTO_AGREED" | "AGD" => some .STP_AUTO_AGREED
+  | "STP_OFFSET_APPLIED" | "AGD_OFFSET" => some .STP_OFFSET_APPLIED
+  | "RUSCHLIKON_QUERIED" | "QRY" => some .RUSCHLIKON_QUERIED
+  | "GATEKEEPER_REJECTED" | "REJ" => some .GATEKEEPER_REJECTED
+  | _ => none
+
 instance : ToJson FacLine := ⟨fun l => Json.str l.toString⟩
 instance : ToJson AlaeClause := ⟨fun a => Json.str a.toString⟩
+instance : ToJson RuschlikonStatus := ⟨fun s => Json.str s.toString⟩
 
 instance : FromJson FacLine where
   fromJson? j := do
@@ -581,6 +603,35 @@ instance : FromJson AlaeClause where
     | some a => pure a
     | none => throw s!"unknown ALAE clause: {s}"
 
+instance : FromJson RuschlikonStatus where
+  fromJson? j := do
+    let s ← j.getStr?
+    match stpOfString? s with
+    | some v => pure v
+    | none => throw s!"unknown Ruschlikon status: {s}"
+
+/-- Optional number with a default, so v0.5 files keep loading. -/
+def getNatOr (j : Json) (key : String) (default : Nat) : Except String Nat :=
+  match j.getObjValAs? Nat key with
+  | .ok v => pure v
+  | .error _ => pure default
+
+/-- Number under a new name, falling back to the v0.5 name. -/
+def getNatAlias (j : Json) (primary fallback : String) (default : Nat) : Except String Nat :=
+  match j.getObjValAs? Nat primary with
+  | .ok v => pure v
+  | .error _ => getNatOr j fallback default
+
+def getBoolOr (j : Json) (key : String) (default : Bool) : Except String Bool :=
+  match j.getObjValAs? Bool key with
+  | .ok v => pure v
+  | .error _ => pure default
+
+def getStrOr (j : Json) (key : String) (default : String) : Except String String :=
+  match j.getObjValAs? String key with
+  | .ok v => pure v
+  | .error _ => pure default
+
 instance : ToJson FacCertificate where
   toJson c :=
     Json.mkObj
@@ -591,7 +642,11 @@ instance : ToJson FacCertificate where
       , ("attachmentUsd", ToJson.toJson c.attachmentUsd)
       , ("occLimitUsd", ToJson.toJson c.occLimitUsd)
       , ("signedShareBps", ToJson.toJson c.signedShareBps)
-      , ("alaeClause", ToJson.toJson c.alaeClause) ]
+      , ("alaeClause", ToJson.toJson c.alaeClause)
+      , ("grossPremiumUsd", ToJson.toJson c.grossPremiumUsd)
+      , ("brokerageBps", ToJson.toJson c.brokerageBps)
+      , ("paidPremiumToDateUsd", ToJson.toJson c.paidPremiumToDateUsd)
+      , ("insuredGroup", Json.str c.insuredGroup) ]
 
 instance : FromJson FacCertificate where
   fromJson? j := do
@@ -603,9 +658,15 @@ instance : FromJson FacCertificate where
     let occLimitUsd ← j.getObjValAs? Nat "occLimitUsd"
     let signedShareBps ← j.getObjValAs? Nat "signedShareBps"
     let alaeClause ← j.getObjValAs? AlaeClause "alaeClause"
+    let grossPremiumUsd ← getNatOr j "grossPremiumUsd" 0
+    let brokerageBps ← getNatOr j "brokerageBps" 0
+    let paidPremiumToDateUsd ← getNatOr j "paidPremiumToDateUsd" 0
+    let insuredGroup ← getStrOr j "insuredGroup" insuredName
     pure { certId := certId, insuredName := insuredName, cedentName := cedentName,
            line := line, attachmentUsd := attachmentUsd, occLimitUsd := occLimitUsd,
-           signedShareBps := signedShareBps, alaeClause := alaeClause }
+           signedShareBps := signedShareBps, alaeClause := alaeClause,
+           grossPremiumUsd := grossPremiumUsd, brokerageBps := brokerageBps,
+           paidPremiumToDateUsd := paidPremiumToDateUsd, insuredGroup := insuredGroup }
 
 instance : ToJson FacClaimSubmission where
   toJson s :=
@@ -613,32 +674,53 @@ instance : ToJson FacClaimSubmission where
       [ ("claimId", Json.str s.claimId)
       , ("certId", Json.str s.certId)
       , ("lossDesc", Json.str s.lossDesc)
-      , ("groundUpIndemnityUsd", ToJson.toJson s.groundUpIndemnityUsd)
-      , ("groundUpAlaeUsd", ToJson.toJson s.groundUpAlaeUsd)
+      , ("paidIndemnityUsd", ToJson.toJson s.paidIndemnityUsd)
+      , ("paidAlaeUsd", ToJson.toJson s.paidAlaeUsd)
+      , ("oslrIndemnityUsd", ToJson.toJson s.oslrIndemnityUsd)
+      , ("oslrAlaeUsd", ToJson.toJson s.oslrAlaeUsd)
       , ("priorPaidUsd", ToJson.toJson s.priorPaidUsd)
-      , ("cedentBilledNowUsd", ToJson.toJson s.cedentBilledNowUsd) ]
+      , ("priorOslrBookedUsd", ToJson.toJson s.priorOslrBookedUsd)
+      , ("cedentBilledNowUsd", ToJson.toJson s.cedentBilledNowUsd)
+      , ("applyPremiumOffset", ToJson.toJson s.applyPremiumOffset)
+      , ("clashEventTag", Json.str s.clashEventTag) ]
 
 instance : FromJson FacClaimSubmission where
   fromJson? j := do
     let claimId ← j.getObjValAs? String "claimId"
     let certId ← j.getObjValAs? String "certId"
-    let lossDesc ← j.getObjValAs? String "lossDesc"
-    let groundUpIndemnityUsd ← j.getObjValAs? Nat "groundUpIndemnityUsd"
-    let groundUpAlaeUsd ← j.getObjValAs? Nat "groundUpAlaeUsd"
-    let priorPaidUsd ← j.getObjValAs? Nat "priorPaidUsd"
-    let cedentBilledNowUsd ← j.getObjValAs? Nat "cedentBilledNowUsd"
+    let lossDesc ← getStrOr j "lossDesc" ""
+    let paidIndemnityUsd ← getNatAlias j "paidIndemnityUsd" "groundUpIndemnityUsd" 0
+    let paidAlaeUsd ← getNatAlias j "paidAlaeUsd" "groundUpAlaeUsd" 0
+    let oslrIndemnityUsd ← getNatOr j "oslrIndemnityUsd" 0
+    let oslrAlaeUsd ← getNatOr j "oslrAlaeUsd" 0
+    let priorPaidUsd ← getNatOr j "priorPaidUsd" 0
+    let priorOslrBookedUsd ← getNatOr j "priorOslrBookedUsd" 0
+    let cedentBilledNowUsd ← getNatOr j "cedentBilledNowUsd" 0
+    let applyPremiumOffset ← getBoolOr j "applyPremiumOffset" false
+    let clashEventTag ← getStrOr j "clashEventTag" ""
     pure { claimId := claimId, certId := certId, lossDesc := lossDesc,
-           groundUpIndemnityUsd := groundUpIndemnityUsd, groundUpAlaeUsd := groundUpAlaeUsd,
-           priorPaidUsd := priorPaidUsd, cedentBilledNowUsd := cedentBilledNowUsd }
+           paidIndemnityUsd := paidIndemnityUsd, paidAlaeUsd := paidAlaeUsd,
+           oslrIndemnityUsd := oslrIndemnityUsd, oslrAlaeUsd := oslrAlaeUsd,
+           priorPaidUsd := priorPaidUsd, priorOslrBookedUsd := priorOslrBookedUsd,
+           cedentBilledNowUsd := cedentBilledNowUsd,
+           applyPremiumOffset := applyPremiumOffset, clashEventTag := clashEventTag }
 
-instance : ToJson FacJournalVoucher where
+instance : ToJson FacFullAccountingVoucher where
   toJson v :=
     Json.mkObj
-      [ ("debitIndemnityIncrementalUsd", ToJson.toJson v.debitIndemnityIncrementalUsd)
-      , ("debitAlaeIncrementalUsd", ToJson.toJson v.debitAlaeIncrementalUsd)
-      , ("creditCedantPayableUsd", ToJson.toJson v.creditCedantPayableUsd)
-      , ("totalDebitUsd", ToJson.toJson v.totalDebitUsd)
-      , ("totalCreditUsd", ToJson.toJson v.totalCreditUsd) ]
+      [ ("debitPaidClaimsExpenseUsd", ToJson.toJson v.debitPaidClaimsExpenseUsd)
+      , ("creditPremiumReceivableOffsetUsd", ToJson.toJson v.creditPremiumReceivableOffsetUsd)
+      , ("creditCashWirePayableUsd", ToJson.toJson v.creditCashWirePayableUsd)
+      , ("cashTotalDebitUsd", ToJson.toJson v.cashTotalDebitUsd)
+      , ("cashTotalCreditUsd", ToJson.toJson v.cashTotalCreditUsd)
+      , ("debitOslrExpenseUsd", ToJson.toJson v.debitOslrExpenseUsd)
+      , ("creditOslrLiabilityUsd", ToJson.toJson v.creditOslrLiabilityUsd)
+      , ("debitOslrLiabilityReleaseUsd", ToJson.toJson v.debitOslrLiabilityReleaseUsd)
+      , ("creditOslrExpenseReleaseUsd", ToJson.toJson v.creditOslrExpenseReleaseUsd)
+      , ("reserveTotalDebitUsd", ToJson.toJson v.reserveTotalDebitUsd)
+      , ("reserveTotalCreditUsd", ToJson.toJson v.reserveTotalCreditUsd)
+      , ("grandTotalDebitUsd", ToJson.toJson v.grandTotalDebitUsd)
+      , ("grandTotalCreditUsd", ToJson.toJson v.grandTotalCreditUsd) ]
 
 instance : ToJson FacAuditResult where
   toJson r :=
@@ -652,12 +734,22 @@ instance : ToJson FacAuditResult where
       , ("ourIndemnityUsd", ToJson.toJson r.ourIndemnityUsd)
       , ("ourAlaeUsd", ToJson.toJson r.ourAlaeUsd)
       , ("ourCumulativePayableUsd", ToJson.toJson r.ourCumulativePayableUsd)
+      , ("ourCumulativePaidUsd", ToJson.toJson r.ourCumulativePaidUsd)
+      , ("ourCumulativeIncurredUsd", ToJson.toJson r.ourCumulativeIncurredUsd)
+      , ("verifiedEndingOslrUsd", ToJson.toJson r.verifiedEndingOslrUsd)
       , ("priorPaidUsd", ToJson.toJson r.priorPaidUsd)
-      , ("verifiedIncrementalDueUsd", ToJson.toJson r.verifiedIncrementalDueUsd)
+      , ("priorOslrBookedUsd", ToJson.toJson r.priorOslrBookedUsd)
+      , ("grossCashPayableNowUsd", ToJson.toJson r.grossCashPayableNowUsd)
+      , ("premiumOffsetUsd", ToJson.toJson r.premiumOffsetUsd)
+      , ("netCashWireDueUsd", ToJson.toJson r.netCashWireDueUsd)
       , ("cedentBilledNowUsd", ToJson.toJson r.cedentBilledNowUsd)
       , ("overbilledUsd", ToJson.toJson r.overbilledUsd)
       , ("underbilledUsd", ToJson.toJson r.underbilledUsd)
-      , ("journal", ToJson.toJson r.journal)
+      , ("ruschlikonStatus", ToJson.toJson r.ruschlikonStatus)
+      , ("acordResponseCode", Json.str r.acordResponseCode)
+      , ("voucher", ToJson.toJson r.voucher)
+      , ("leanSpecCode", Json.str r.leanSpecCode)
+      , ("backTranslation", Json.str r.backTranslation)
       , ("brokerMemo", Json.str r.brokerMemo) ]
 
 instance : ToJson FacPortfolioAudit where
@@ -669,6 +761,9 @@ instance : ToJson FacPortfolioAudit where
       , ("totalVerifiedUsd", ToJson.toJson a.totalVerifiedUsd)
       , ("totalOverbilledUsd", ToJson.toJson a.totalOverbilledUsd)
       , ("totalUnderbilledUsd", ToJson.toJson a.totalUnderbilledUsd)
+      , ("totalPremiumOffsetUsd", ToJson.toJson a.totalPremiumOffsetUsd)
+      , ("totalNetWireUsd", ToJson.toJson a.totalNetWireUsd)
+      , ("totalEndingOslrUsd", ToJson.toJson a.totalEndingOslrUsd)
       , ("disputeCount", ToJson.toJson a.disputeCount) ]
 
 instance : ToJson FacBundle where
@@ -697,5 +792,6 @@ def loadFacBundle (path : System.FilePath) : IO FacBundle := do
 def facAuditJson (path : System.FilePath) : IO String := do
   let b ← loadFacBundle path
   pure (Json.compress (ToJson.toJson (auditFacBundle b)))
+
 
 end ReinsuranceLeanCockpit

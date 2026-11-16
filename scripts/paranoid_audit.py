@@ -72,13 +72,13 @@ def check_q1() -> None:
     code = strip_comments(text)
 
     ok("TrustBoundary.lean exists", f"{lines} lines")
-    (ok if lines < 120 else bad)("file is under 120 lines", f"{lines}")
+    (ok if lines < 180 else bad)("file is under 180 lines", f"{lines}")
     tactic_free = not re.search(r":=\s*by\b|\bby\s*$", code, re.M)
     (ok if tactic_free else bad)("contains no proof tactics", "no ':=' followed by 'by'")
     (ok if "sorry" not in code else bad)("contains no sorry", "")
 
     specs = re.findall(r"^def (Spec_\w+)\s*:\s*Prop", code, re.M)
-    (ok if len(specs) == 10 else bad)("declares 10 named specifications", f"found {len(specs)}")
+    (ok if len(specs) == 12 else bad)("declares 12 named specifications", f"found {len(specs)}")
     for name in specs:
         print(f"        · {name}")
 

@@ -87,6 +87,20 @@ def Spec_FacNoOverRecovery : Prop :=
 equal to credits: indemnity plus ALAE equals the cedent payable. -/
 def Spec_FacJournalBalanced : Prop :=
   ∀ (c : FacCertificate) (s : FacClaimSubmission),
-    (auditFacClaim c s).journal.totalDebitUsd = (auditFacClaim c s).journal.totalCreditUsd
+    (auditFacClaim c s).voucher.cashTotalDebitUsd = (auditFacClaim c s).voucher.cashTotalCreditUsd
+
+/-- **11. Paid plus reserve equals incurred.** The ending case reserve is exactly
+the gap between what the layer has incurred and what it has paid. -/
+def Spec_PaidOslrConservation : Prop :=
+  ∀ (c : FacCertificate) (s : FacClaimSubmission),
+    (auditFacClaim c s).ourCumulativePaidUsd + (auditFacClaim c s).verifiedEndingOslrUsd =
+      (auditFacClaim c s).ourCumulativeIncurredUsd
+
+/-- **12. The full two-leg voucher balances.** Cash settlement plus reserve
+movement: total debits equal total credits for every certificate, claim and
+premium offset. -/
+def Spec_FacFullVoucherBalanced : Prop :=
+  ∀ (c : FacCertificate) (s : FacClaimSubmission),
+    (auditFacClaim c s).voucher.grandTotalDebitUsd = (auditFacClaim c s).voucher.grandTotalCreditUsd
 
 end ReinsuranceLeanCockpit
