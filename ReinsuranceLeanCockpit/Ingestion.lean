@@ -342,7 +342,12 @@ instance : ToJson ScenarioSimulationReport where
       , ("counterpartyScrEur", ToJson.toJson r.counterpartyScrEur)
       , ("otherScrEur", ToJson.toJson r.otherScrEur)
       , ("totalScrEur", ToJson.toJson r.totalScrEur)
+      , ("initialOwnFundsEur", ToJson.toJson r.initialOwnFundsEur)
       , ("ownFundsEur", ToJson.toJson r.ownFundsEur)
+      , ("seasonLossDrainEur", ToJson.toJson r.seasonLossDrainEur)
+      , ("postSeasonOwnFundsEur", ToJson.toJson r.postSeasonOwnFundsEur)
+      , ("postSeasonScrEur", ToJson.toJson r.postSeasonScrEur)
+      , ("preSeasonSolvencyRatioPct", ToJson.toJson r.preSeasonSolvencyRatioPct)
       , ("solvencyRatioPct", ToJson.toJson r.solvencyRatioPct)
       , ("isSolvent", ToJson.toJson r.isSolvent) ]
 
@@ -470,7 +475,33 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "scenarioReport_scr_sum" "Simulation"
       "The simulation's reported SCR total equals its four printed components."
   , theoremRecord "scenarioReport_isSolvent_iff" "Simulation"
-      "The simulation's solvency flag is exactly the ratio-at-least-100% test." ]
+      "The simulation's solvency flag is exactly the ratio-at-least-100% test."
+  , theoremRecord "xolPayout_mono" "Monotonicity"
+      "XoL payout is monotone in the loss."
+  , theoremRecord "netAfterXoL_mono" "Monotonicity"
+      "Net retained after XoL is monotone in the loss."
+  , theoremRecord "applyStopLoss_mono" "Monotonicity"
+      "Stop-loss recovery is monotone in the annual loss."
+  , theoremRecord "netAfterStopLoss_mono" "Monotonicity"
+      "Net retained after stop loss is monotone in the loss."
+  , theoremRecord "qsPayout_mono" "Monotonicity"
+      "Quota-share payout is monotone in the loss."
+  , theoremRecord "netAfterQS_mono" "Monotonicity"
+      "Quota-share net retention is monotone when the share is at most 100%."
+  , theoremRecord "netAfterSurplus_mono" "Monotonicity"
+      "Surplus-share net retention is monotone in the loss."
+  , theoremRecord "evalContractPayout_mono" "Monotonicity"
+      "Every valid contract's payout is monotone in the loss."
+  , theoremRecord "evalContractNet_mono" "Monotonicity"
+      "Every valid contract's net retention is monotone in the loss."
+  , theoremRecord "applyInuringTower_net_mono" "Monotonicity"
+      "By induction: a larger gross loss leaves a larger net retained loss after any valid tower."
+  , theoremRecord "postSeasonOwnFunds_antitone" "Monotonicity"
+      "A larger season drain leaves less post-season capital."
+  , theoremRecord "postSeasonRatio_antitone_num" "Monotonicity"
+      "For a fixed capital requirement, less capital means a lower ratio."
+  , theoremRecord "postSeasonRatio_antitone" "Monotonicity"
+      "A larger season drain can only lower the post-season solvency ratio." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)

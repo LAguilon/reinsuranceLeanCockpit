@@ -517,9 +517,18 @@ function collectScenario() {
 function renderSimulation(r) {
   const cell = (label, value, cls = "") =>
     `<div class="sim-cell"><div class="lab">${label}</div><div class="val ${cls}">${value}</div></div>`;
-  const status = r.isSolvent
-    ? `<span class="ok">SOLVENT ${r.solvencyRatioPct}%</span>`
-    : `<span class="danger">BREACH ${r.solvencyRatioPct}%</span>`;
+  const cls = r.isSolvent ? "ok" : "danger";
+
+  const bridge = `
+    <div class="ratio-bridge ${cls}">
+      <div class="step"><span class="lab">Pre-season own funds</span><span class="num">${fmtM(r.initialOwnFundsEur)}</span></div>
+      <div class="arrow">−</div>
+      <div class="step"><span class="lab">Season loss drain</span><span class="num">${fmtM(r.seasonLossDrainEur)}</span></div>
+      <div class="arrow">=</div>
+      <div class="step"><span class="lab">Post-season own funds</span><span class="num">${fmtM(r.postSeasonOwnFundsEur)}</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="lab">Post-season ratio</span><span class="num ${cls}">${r.solvencyRatioPct}% ${r.isSolvent ? "SOLVENT" : "BREACH"}</span></div>
+    </div>`;
 
   $("#simResults").innerHTML = `
     <div class="sim-strip">
@@ -527,15 +536,16 @@ function renderSimulation(r) {
       ${cell("Retro recovered", fmtM(r.annualOutwardRecoveredEur))}
       ${cell("Net before SL", fmtM(r.annualNetBeforeStopLossEur))}
       ${cell("Stop loss", fmtM(r.stopLossRecoveredEur))}
-      ${cell("Final net", fmtM(r.annualFinalNetLossEur))}
+      ${cell("Final net loss", fmtM(r.annualFinalNetLossEur))}
     </div>
     <div class="sim-strip">
       ${cell("Reinstatement drag", fmtM(r.totalReinstFeeEur))}
       ${cell("Counterparty SCR", fmtM(r.counterpartyScrEur))}
-      ${cell("Total SCR", fmtM(r.totalScrEur))}
-      ${cell("Own funds", fmtM(r.ownFundsEur))}
-      ${cell("Post-season", status, "")}
+      ${cell("Other SCR", fmtM(r.otherScrEur))}
+      ${cell("Post-season SCR", fmtM(r.postSeasonScrEur))}
+      ${cell("Pre-season ratio", `${r.preSeasonSolvencyRatioPct}%`, "muted-val")}
     </div>
+    ${bridge}
     <table class="data-table">
       <thead><tr><th>Event</th><th>Gross</th><th>Recovered</th><th>Net</th><th>Reinst. fee</th></tr></thead>
       <tbody>${r.events

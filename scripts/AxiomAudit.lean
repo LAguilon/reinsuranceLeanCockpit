@@ -52,3 +52,19 @@ open ReinsuranceLeanCockpit
 #print axioms netAfterStopLoss_conservation
 #print axioms scenarioReport_scr_sum
 #print axioms scenarioReport_isSolvent_iff
+
+/-! ### v0.4 — monotonicity and post-season capital -/
+
+#print axioms xolPayout_mono
+#print axioms netAfterXoL_mono
+#print axioms applyStopLoss_mono
+#print axioms netAfterStopLoss_mono
+#print axioms qsPayout_mono
+#print axioms netAfterQS_mono
+#print axioms netAfterSurplus_mono
+#print axioms evalContractPayout_mono
+#print axioms evalContractNet_mono
+#print axioms applyInuringTower_net_mono
+#print axioms postSeasonOwnFunds_antitone
+#print axioms postSeasonRatio_antitone_num
+#print axioms postSeasonRatio_antitone

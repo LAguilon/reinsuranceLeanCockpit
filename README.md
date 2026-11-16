@@ -6,7 +6,12 @@ Contracts are total functions over exact integers. Every accounting identity and
 risk bound is a theorem proved by the Lean 4 kernel — for every loss, every FX
 rate, and every retrocession tower depth. No Mathlib, no `Float`, no `sorry`.
 
-**v0.3** closes the loop from paper to balance sheet:
+**v0.4** fixes the post-season balance sheet. Own funds now erode by the realised
+season drain, aggregate limits erode across events, and the solvency curve is
+proved monotone in `Monotonicity.lean` — a bigger loss can no longer leave the
+ratio flat, let alone raise it.
+
+**v0.3** closed the loop from paper to balance sheet:
 
 ```
 PDF/MRC slip ──► Python extractor ──► Lean gatekeeper ──► static scanner ──► multi-event simulator
@@ -23,6 +28,42 @@ lake build                 # ~10s from clean, zero dependencies
 python3 server/app.py      # → http://localhost:8080
 python3 scripts/test_e2e.py
 ```
+
+---
+
+## v0.4 — why the solvency ratio could misbehave
+
+The v0.3 simulator reported `ownFunds / (netLoss + reinstatement + SCR)`. Capital
+never moved, and the loss appeared in the *denominator*, so the ratio fell while
+losses were below the stop-loss attachment and then **stopped changing entirely**
+once every inward limit and the stop loss bound. Measured on the as-bound book:
+
+| Ground-up | v0.3 ratio | v0.4 post-season ratio |
+|---|---|---|
+| $0 | 634% | 203% |
+| $25M | 308% | 169% |
+| $100M | 308% | 169% |
+| $500M | 308% | 169% |
+
+A ratio that is flat from $25M to $500M reads as "this loss does not matter",
+which is the accounting error underneath: a realised catastrophe does not merely
+add to a requirement, it consumes capital.
+
+v0.4 changes the physics, not the display:
+
+* `seasonLossDrainEur := annualFinalNetLossEur + totalReinstFeeEur`
+* `postSeasonOwnFundsEur := initialOwnFundsEur − drain` (truncated at zero)
+* `postSeasonScrEur := otherScrEur + counterpartyScrEur + maxSingleEventAppetiteEur`
+* `solvencyRatioPct := postSeasonOwnFunds / postSeasonScr` (headline)
+* `preSeasonSolvencyRatioPct` keeps the old build-up for comparison
+
+Aggregate limits now erode per contract across the season, and each layer's
+reinstatement premium is charged on **what that layer actually pays**, not on the
+pre-tower gross.
+
+`Monotonicity.lean` proves the three layers of the argument: each contract form
+is monotone in the loss (payout and net), the inuring tower preserves it by
+induction, and post-season capital/ratio are antitone in the drain.
 
 ---
 
@@ -86,7 +127,7 @@ the outward tower in inuring order. Stop losses then apply to the season total.
 
 ## What is proved
 
-44 theorems, all `sorry`-free. The core of the portfolio argument:
+57 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
 
 | Theorem | Statement |
 |---|---|
@@ -106,6 +147,11 @@ the outward tower in inuring order. Stop losses then apply to the season total.
 | `scenarioReport_scr_sum` | the simulator's SCR total equals its four components |
 | `netAfterStopLoss_conservation` | the stop loss moves money, it does not make it |
 | `tally_sum` / `auditPortfolio_counts_sum` | severity counts partition the findings |
+| `evalContractPayout_mono` | every valid contract's payout is monotone in the loss |
+| `evalContractNet_mono` | every valid contract's net retention is monotone in the loss |
+| `applyInuringTower_net_mono` | **by induction:** a bigger gross loss leaves a bigger net retained loss |
+| `postSeasonOwnFunds_antitone` | a bigger drain leaves less capital |
+| `postSeasonRatio_antitone` | a bigger drain can only lower the post-season ratio |
 | `solvencyRatioPct_mono_ownFunds` | adding capital never lowers the ratio |
 
 `scripts/AxiomAudit.lean` runs `#print axioms` over the headline set; nothing
@@ -130,7 +176,7 @@ Five panels, vanilla HTML/CSS/JS, no framework and no build step:
    gap-closer removes the red block; the Cayman slip adds a credit cliff; the
    115% quota share is rejected with the failing bound quoted.
 5. **Simulator + proof registry** — editable FX rates and event list, a live
-   `POST /api/simulate`, and the collapsible table of all 44 theorems.
+   `POST /api/simulate`, and the collapsible table of all 57 theorems.
 
 ### API
 
@@ -189,6 +235,10 @@ new credit cliff, gatekeeper rejection), simulation conservation
   v0.1 hours clause is not yet wired into `BoundContract`.
 * The PDF extractor handles simple text-layer PDFs, not scanned images or
   complex encodings.
+* The solvency sweep plateaus once every inward limit and the stop loss bind
+  (about $80M ground-up on the sample book). That is the correct shape for this
+  portfolio, not a monotonicity failure: the ratio stops falling because the
+  loss stops growing.
 
 ## Repository layout
 
@@ -197,6 +247,7 @@ ReinsuranceLeanCockpit/
   Core.lean  Solvency.lean  AlpineShowcase.lean      # v0.1
   Contracts.lean  Diagnostics.lean                   # v0.2
   Validation.lean  Simulation.lean  Ingestion.lean   # v0.3
+  Monotonicity.lean                                  # v0.4
 Main.lean
 server/app.py  server/slip_parser.py
 web/index.html  web/styles.css  web/app.js

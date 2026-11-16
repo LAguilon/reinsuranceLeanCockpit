@@ -13,6 +13,7 @@ base64, time, os, sys.
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -52,6 +53,24 @@ SLIP_LABELS = {
 
 def lean_available() -> bool:
     return LEAN_BIN.exists()
+
+
+def ensure_binary() -> bool:
+    """`lake build` should already produce the exe (it is a default target), but
+    a fresh clone with `lake build ReinsuranceLeanCockpit` only would not. Build
+    on demand rather than failing with a 500 on the first request."""
+    if lean_available():
+        return True
+    lake = shutil.which("lake")
+    print(f"cockpit binary missing at {LEAN_BIN}")
+    if not lake:
+        print("lake is not on PATH. Install Lean (elan), then run: lake build cockpit")
+        return False
+    print("building: lake build cockpit ...")
+    proc = subprocess.run([lake, "build", "cockpit"], cwd=str(ROOT))
+    ok = proc.returncode == 0 and lean_available()
+    print("build ok" if ok else "build FAILED — run `lake build` and read the errors")
+    return ok
 
 
 def run_lean(args: list[str], timeout: int = 10) -> tuple[dict, float]:
@@ -112,7 +131,7 @@ def slip_list() -> list[dict]:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "ReinsuranceLeanCockpit/0.3"
+    server_version = "ReinsuranceLeanCockpit/0.4"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB), **kwargs)
@@ -240,8 +259,9 @@ def main() -> None:
     port = int(os.environ.get("PORT", "8080"))
     if not WEB.exists():
         raise SystemExit(f"web directory missing: {WEB}")
+    ensure_binary()
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"ReinsuranceLean Cockpit v0.3 on http://localhost:{port}")
+    print(f"ReinsuranceLean Cockpit v0.4 on http://localhost:{port}")
     print(f"Lean binary: {LEAN_BIN} ({'found' if lean_available() else 'MISSING — run lake build'})")
     try:
         server.serve_forever()

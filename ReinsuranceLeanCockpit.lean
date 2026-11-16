@@ -5,4 +5,5 @@ import ReinsuranceLeanCockpit.Contracts
 import ReinsuranceLeanCockpit.Diagnostics
 import ReinsuranceLeanCockpit.Validation
 import ReinsuranceLeanCockpit.Simulation
+import ReinsuranceLeanCockpit.Monotonicity
 import ReinsuranceLeanCockpit.Ingestion

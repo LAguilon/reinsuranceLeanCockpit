@@ -49,7 +49,7 @@ def request(base: str, path: str, payload=None):
 
 
 def main() -> int:
-    print("== ReinsuranceLean Cockpit v0.3 — end-to-end ==")
+    print("== ReinsuranceLean Cockpit v0.4 — end-to-end ==")
 
     binary = ROOT / ".lake" / "build" / "bin" / "cockpit"
     check("Lean binary exists", binary.exists(), str(binary))
@@ -161,6 +161,76 @@ def main() -> int:
         )
         check("simulate: three events priced", len(sim["events"]) == 3)
         check("simulate: all contracts admissible", sim["allContractsValid"] is True)
+
+        # ---- Monotonicity Stress Sweep -------------------------------------
+        print("\n-- Monotonicity Stress Sweep ($0 -> $500M US windstorm) --")
+        sweep_losses = [0, 25_000_000, 60_000_000, 100_000_000, 200_000_000, 500_000_000]
+        sweep = []
+        for loss in sweep_losses:
+            scenario = {
+                "scenarioName": f"monotonicity sweep @ {loss}",
+                "fxOverridesToEurCents": [
+                    {"currency": "EUR", "cents": 100},
+                    {"currency": "USD", "cents": 100},
+                ],
+                "events": [
+                    {
+                        "eventName": "US windstorm",
+                        "peril": "Windstorm",
+                        "currency": "USD",
+                        "groundUpLoss": loss,
+                    }
+                ],
+            }
+            sweep.append(request(base, "/api/simulate", {"portfolio": as_bound, "scenario": scenario}))
+
+        print(f"  {'loss':>12} {'inward':>12} {'netFinal':>12} {'drain':>12} {'postFunds':>12} {'ratio':>6}")
+        for loss, row in zip(sweep_losses, sweep):
+            print(
+                f"  {loss:>12} {row['annualInwardGrossEur']:>12} {row['annualFinalNetLossEur']:>12} "
+                f"{row['seasonLossDrainEur']:>12} {row['postSeasonOwnFundsEur']:>12} {row['solvencyRatioPct']:>6}"
+            )
+
+        def nondecreasing(xs):
+            return all(a <= b for a, b in zip(xs, xs[1:]))
+
+        def nonincreasing(xs):
+            return all(a >= b for a, b in zip(xs, xs[1:]))
+
+        inward = [r["annualInwardGrossEur"] for r in sweep]
+        final_net = [r["annualFinalNetLossEur"] for r in sweep]
+        post_funds = [r["postSeasonOwnFundsEur"] for r in sweep]
+        ratios = [r["solvencyRatioPct"] for r in sweep]
+
+        check("sweep: inward gross is non-decreasing", nondecreasing(inward), str(inward))
+        check("sweep: final net loss is non-decreasing", nondecreasing(final_net), str(final_net))
+        check("sweep: post-season own funds are non-increasing", nonincreasing(post_funds), str(post_funds))
+        check("sweep: post-season ratio is non-increasing", nonincreasing(ratios), str(ratios))
+        check(
+            "sweep: ratio strictly falls from $0 to $500M",
+            ratios[0] > ratios[-1],
+            f"{ratios[0]} -> {ratios[-1]}",
+        )
+        check(
+            "sweep: own funds never exceed initial capital",
+            all(r["postSeasonOwnFundsEur"] <= r["initialOwnFundsEur"] for r in sweep),
+        )
+        check(
+            "sweep: drain identity holds at every step",
+            all(
+                r["seasonLossDrainEur"]
+                == r["annualFinalNetLossEur"] + r["totalReinstFeeEur"]
+                for r in sweep
+            ),
+        )
+        check(
+            "sweep: post-season capital identity holds at every step",
+            all(
+                r["postSeasonOwnFundsEur"]
+                == max(r["initialOwnFundsEur"] - r["seasonLossDrainEur"], 0)
+                for r in sweep
+            ),
+        )
 
         with urllib.request.urlopen(base + "/api/slips/SLIP_01_Valid_Gap_Closer_USD.pdf") as res:
             content_type = res.headers.get("Content-Type", "")

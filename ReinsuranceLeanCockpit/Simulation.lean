@@ -4,28 +4,27 @@ import ReinsuranceLeanCockpit.Diagnostics
 namespace ReinsuranceLeanCockpit
 
 /-!
-# Multi-event catastrophe simulator
+# Multi-event catastrophe simulator (v0.4)
 
-The static scanner in `Diagnostics` answers "is the structure wrong?". This
-module answers the next question: "what happens to the balance sheet when a
-season actually fires?"
+v0.3 priced each event against fresh, un-eroded aggregate limits and reported a
+solvency ratio built on **pre-season** own funds. Both are wrong in the same
+direction: a season with more loss looked no worse than a season with less,
+because capital never moved.
 
-A scenario is a list of events plus an FX table. Each event is converted into
-every inward contract's currency, priced through that contract, converted back
-to EUR, then passed down the outward tower in inuring order. Aggregate stop
-losses apply to the season total, not to any single event.
+v0.4 fixes the physics:
 
-Three properties are worth stating up front, because they are where simulators
-usually cheat:
+* **Aggregate limits erode across the season.** Each contract carries a
+  remaining aggregate, initialised from its limit and reduced by every payout it
+  makes. The second event of the year sees what the first one left.
+* **Reinstatement premium is charged on what the layer actually pays.** Not on
+  the event's gross loss, which over-charged towers with layers beneath.
+* **Own funds erode.** After the season, capital is
+  `initial − (net retained + reinstatement premium)`, truncated at zero, and the
+  denominator is a *forward* capital requirement rather than the loss itself.
 
-* **No money is created per event.** The outward tower is `applyInuringTower`,
-  the same function whose conservation theorem is proved by induction in
-  `Contracts`. Net retained plus recovered equals gross, for every event.
-* **Currency conversion is explicit and exact.** Every conversion goes through
-  EUR with the scenario's rate, integer division, rounding down. An override
-  set in the scenario replaces the portfolio quote for that currency.
-* **A rejected contract contributes nothing.** Invalid contracts are filtered
-  out of the simulation rather than priced with a nonsense parameter.
+That last change is what makes the solvency curve behave: as loss rises, the
+numerator falls and the denominator is at least flat, so the ratio can only fall.
+`Monotonicity.lean` proves it.
 -/
 
 /-! ## Scenario vocabulary -/
@@ -34,8 +33,7 @@ structure ScenarioEvent where
   eventName : String
   peril : Peril
   currency : Currency
-  /-- Ground-up market loss, in `currency`, reported at the same scale as the
-  portfolio's amounts. -/
+  /-- Ground-up market loss, in `currency`, at the portfolio's amount scale. -/
   groundUpLoss : Nat
   deriving Repr
 
@@ -130,44 +128,120 @@ def insertionSort (le : α → α → Bool) : List α → List α
   | [] => []
   | x :: xs => insertSorted le x (insertionSort le xs)
 
-/-! ## Event evaluation -/
+/-! ## Season state: remaining aggregate capacity -/
 
-/-- Inward gross assumed loss in EUR: the event loss is converted into each
-inward contract's currency, priced through that contract, and converted back. -/
-def eventInwardGrossEur (p : BoundPortfolio) (s : StressScenario) (e : ScenarioEvent) : Nat :=
+/-- Remaining aggregate capacity, keyed by contract id. Inward entries are in
+the contract's own currency; outward entries are in EUR, because the outward
+tower runs in the EUR view. The key spaces are disjoint, so one list serves
+both. -/
+abbrev AggState := List (String × Nat)
+
+def initAggState (p : BoundPortfolio) (s : StressScenario) : AggState :=
+  p.contracts.map fun c =>
+    if c.direction == .outward then
+      ((eurView p s c).id, (eurView p s c).kind.aggregateCapacity)
+    else
+      (c.id, c.kind.aggregateCapacity)
+
+/-- Remaining capacity for a contract. A missing key reads as zero: an
+uninitialised layer pays nothing, which fails closed rather than open. -/
+def remainingFor (st : AggState) (id : String) : Nat :=
+  (st.lookup id).getD 0
+
+/-- Consume capacity. Aggregate limits only ever go down. -/
+def erode (st : AggState) (id : String) (paid : Nat) : AggState :=
+  st.map fun entry => if entry.1 == id then (entry.1, entry.2 - paid) else entry
+
+/-! ## Event processing -/
+
+/-- Inward gross assumed loss for one event, eroding each inward contract's
+remaining aggregate as it pays. -/
+def processInward (p : BoundPortfolio) (s : StressScenario)
+    (e : ScenarioEvent) (st : AggState) : Nat × AggState :=
   (p.contracts.filter (fun c =>
       c.direction == .inward && c.isValid && c.perils.contains e.peril)).foldl
-    (fun acc c =>
+    (fun (acc : Nat × AggState) c =>
       let lossInCcy := convertAt p s e.currency c.currency e.groundUpLoss
-      acc + toEurAt p s (evalContractPayout c c.kind.aggregateCapacity lossInCcy) c.currency) 0
+      let rem := remainingFor acc.2 c.id
+      let paid := evalContractPayout c rem lossInCcy
+      (acc.1 + toEurAt p s paid c.currency, erode acc.2 c.id paid))
+    (0, st)
 
 /-- Outward non-stop-loss contracts covering the event, in EUR, in inuring order. -/
-def outwardTower (p : BoundPortfolio) (s : StressScenario) (e : ScenarioEvent) :
-    List (BoundContract × Nat) :=
-  insertionSort (fun a b => decide (a.1.inuringPriority ≤ b.1.inuringPriority))
+def outwardLayers (p : BoundPortfolio) (s : StressScenario) (e : ScenarioEvent) :
+    List BoundContract :=
+  insertionSort (fun a b => decide (a.inuringPriority ≤ b.inuringPriority))
     ((p.contracts.filter (fun c =>
         c.direction == .outward && c.perils.contains e.peril && !isStopLoss c)).map
-      fun c =>
-        let v := eurView p s c
-        (v, v.kind.aggregateCapacity))
+      (fun c => eurView p s c))
 
-/-- Reinstatement premium drag for one event, charged pro rata as to amount on
-each triggered outward XoL layer.
+/-- Reinstatement premium for a layer, charged **pro rata as to amount on what
+the layer actually pays**: `paid / occLimit × basePremium × rate`. Charging it
+on the pre-tower gross, as v0.3 did, over-charged every layer that had other
+layers beneath it. -/
+def feeFor (c : BoundContract) (paid : Nat) : Nat :=
+  match c.kind with
+  | .xol _ occ _ rate prem =>
+      if occ == 0 || rate == 0 then 0 else paid * prem * rate / (occ * 10000)
+  | _ => 0
 
-Each layer is priced against the event's gross loss independently rather than
-against the loss it actually receives after layers beneath it. That is
-conservative — it never understates the drag — and it keeps the fee a pure
-function of (event, term sheet) instead of a function of tower ordering. -/
-def eventReinstFeeEur (p : BoundPortfolio) (s : StressScenario)
-    (e : ScenarioEvent) (grossEur : Nat) : Nat :=
-  (p.contracts.filter (fun c =>
-      c.direction == .outward && c.perils.contains e.peril && isXol c)).foldl
-    (fun acc c =>
-      match eurKind p s c.kind c.currency with
-      | .xol att occ _ rate prem =>
-          if rate == 0 || occ == 0 then acc
-          else acc + (min (grossEur - att) occ * prem * rate) / (occ * 10000)
-      | _ => acc) 0
+structure TowerAcc where
+  net : Nat
+  paid : Nat
+  fee : Nat
+  state : AggState
+
+/-- Run the outward tower on one event, threading eroded aggregate capacity and
+accumulating each layer's own reinstatement fee. -/
+def applyTowerStateful (cs : List BoundContract) (st : AggState) (gross : Nat) : TowerAcc :=
+  cs.foldl
+    (fun (acc : TowerAcc) c =>
+      let rem := remainingFor acc.state c.id
+      let p := evalContractPayout c rem acc.net
+      { net := acc.net - p
+        paid := acc.paid + p
+        fee := acc.fee + feeFor c p
+        state := erode acc.state c.id p })
+    { net := gross, paid := 0, fee := 0, state := st }
+
+structure EventSimulationResult where
+  eventName : String
+  peril : Peril
+  currency : Currency
+  groundUpLoss : Nat
+  inwardGrossEur : Nat
+  outwardRecoveredEur : Nat
+  netRetainedEur : Nat
+  reinstFeeEur : Nat
+  deriving Repr
+
+structure EventOutcome where
+  result : EventSimulationResult
+  state : AggState
+
+def processEvent (p : BoundPortfolio) (s : StressScenario)
+    (e : ScenarioEvent) (st : AggState) : EventOutcome :=
+  let inw := processInward p s e st
+  let tow := applyTowerStateful (outwardLayers p s e) inw.2 inw.1
+  { result :=
+      { eventName := e.eventName
+        peril := e.peril
+        currency := e.currency
+        groundUpLoss := e.groundUpLoss
+        inwardGrossEur := inw.1
+        outwardRecoveredEur := tow.paid
+        netRetainedEur := tow.net
+        reinstFeeEur := tow.fee }
+    state := tow.state }
+
+/-- Process the season in event order, carrying aggregate capacity forward. -/
+def runSeason (p : BoundPortfolio) (s : StressScenario) :
+    List EventSimulationResult × AggState :=
+  s.events.foldl
+    (fun (acc : List EventSimulationResult × AggState) e =>
+      let outcome := processEvent p s e acc.2
+      (acc.1 ++ [outcome.result], outcome.state))
+    ([], initAggState p s)
 
 /-- Stop loss layers as (priority, attachment, limit), in inuring order. -/
 def stopLossLayers (p : BoundPortfolio) (s : StressScenario) : List (Nat × Nat × Nat) :=
@@ -185,18 +259,25 @@ def applyStopLossProgram (layers : List (Nat × Nat × Nat)) (netEur : Nat) : Na
       (n - r, rec + r))
     (netEur, 0)
 
-/-! ## Report -/
+/-! ## Post-season balance sheet -/
 
-structure EventSimulationResult where
-  eventName : String
-  peril : Peril
-  currency : Currency
-  groundUpLoss : Nat
-  inwardGrossEur : Nat
-  outwardRecoveredEur : Nat
-  netRetainedEur : Nat
-  reinstFeeEur : Nat
-  deriving Repr
+/-- Capital after the season: initial own funds less the realised drain. Exact
+`Nat` subtraction, so an insolvent result clamps at zero rather than wrapping. -/
+def postSeasonOwnFunds (initialOwnFundsEur drainEur : Nat) : Nat :=
+  initialOwnFundsEur - drainEur
+
+/-- Forward capital requirement after the season: ongoing risk + counterparty
+default on recoverables + a stressed single-event buffer. It does not depend on
+the loss that has already been realised — that loss belongs in the numerator. -/
+def postSeasonScr (otherScrEur counterpartyScrEur maxSingleEventAppetiteEur : Nat) : Nat :=
+  otherScrEur + counterpartyScrEur + maxSingleEventAppetiteEur
+
+/-- Post-season ratio. The `999` sentinel survives from v0.1 for a zero SCR. -/
+def postSeasonRatio (initialOwnFundsEur scrEur drainEur : Nat) : Nat :=
+  if scrEur == 0 then 999
+  else postSeasonOwnFunds initialOwnFundsEur drainEur * 100 / scrEur
+
+/-! ## Report -/
 
 structure ScenarioSimulationReport where
   scenarioName : String
@@ -212,32 +293,41 @@ structure ScenarioSimulationReport where
   totalReinstFeeEur : Nat
   counterpartyScrEur : Nat
   otherScrEur : Nat
+  /-- Pre-season risk build-up, retained for the v0.2 identity. -/
   totalScrEur : Nat
+  /-- Initial own funds before the season. -/
+  initialOwnFundsEur : Nat
+  /-- Backward-compatible alias for `initialOwnFundsEur`. -/
   ownFundsEur : Nat
+  /-- `annualFinalNetLossEur + totalReinstFeeEur`. -/
+  seasonLossDrainEur : Nat
+  /-- `initial − drain`, truncated at zero. -/
+  postSeasonOwnFundsEur : Nat
+  /-- Forward requirement after the season. -/
+  postSeasonScrEur : Nat
+  /-- The pre-v0.4 ratio, kept for comparison. -/
+  preSeasonSolvencyRatioPct : Nat
+  /-- Headline: post-season capital over post-season requirement. -/
   solvencyRatioPct : Nat
   isSolvent : Bool
   deriving Repr
 
 def runPortfolioScenario (p : BoundPortfolio) (s : StressScenario) : ScenarioSimulationReport :=
-  let results := s.events.map fun e =>
-    let gross := eventInwardGrossEur p s e
-    let tower := applyInuringTower (outwardTower p s e) gross
-    { eventName := e.eventName
-      peril := e.peril
-      currency := e.currency
-      groundUpLoss := e.groundUpLoss
-      inwardGrossEur := gross
-      outwardRecoveredEur := tower.2
-      netRetainedEur := tower.1
-      reinstFeeEur := eventReinstFeeEur p s e gross }
+  let season := runSeason p s
+  let results := season.1
   let gross := results.foldl (fun a r => a + r.inwardGrossEur) 0
   let recovered := results.foldl (fun a r => a + r.outwardRecoveredEur) 0
   let reinst := results.foldl (fun a r => a + r.reinstFeeEur) 0
   let netBefore := gross - recovered
   let sl := applyStopLossProgram (stopLossLayers p s) netBefore
+  let finalNet := sl.1
   let cp := counterpartyScr p
-  let total := sl.1 + reinst + cp + p.otherScrEur
-  let ratio := solvencyRatioPct p.ownFundsEur total
+  let drain := finalNet + reinst
+  let postFunds := postSeasonOwnFunds p.ownFundsEur drain
+  let postScr := postSeasonScr p.otherScrEur cp p.maxSingleEventAppetiteEur
+  let ratio := postSeasonRatio p.ownFundsEur postScr drain
+  let preScr := finalNet + reinst + cp + p.otherScrEur
+  let preRatio := solvencyRatioPct p.ownFundsEur preScr
   { scenarioName := s.scenarioName
     portfolioName := p.name
     allContractsValid := isPortfolioValid p.contracts
@@ -247,18 +337,22 @@ def runPortfolioScenario (p : BoundPortfolio) (s : StressScenario) : ScenarioSim
     annualOutwardRecoveredEur := recovered
     annualNetBeforeStopLossEur := netBefore
     stopLossRecoveredEur := sl.2
-    annualFinalNetLossEur := sl.1
+    annualFinalNetLossEur := finalNet
     totalReinstFeeEur := reinst
     counterpartyScrEur := cp
     otherScrEur := p.otherScrEur
-    totalScrEur := total
+    totalScrEur := preScr
+    initialOwnFundsEur := p.ownFundsEur
     ownFundsEur := p.ownFundsEur
+    seasonLossDrainEur := drain
+    postSeasonOwnFundsEur := postFunds
+    postSeasonScrEur := postScr
+    preSeasonSolvencyRatioPct := preRatio
     solvencyRatioPct := ratio
     isSolvent := ratio ≥ 100 }
 
-/-- **SCR sum conservation for the simulator.** The headline capital number is
-exactly the four components the report prints, for every portfolio and every
-scenario. A reader can recompute the ratio by hand from the line items. -/
+/-- **Pre-season SCR identity, preserved from v0.2.** The build-up total is
+still exactly its four components. -/
 theorem scenarioReport_scr_sum (p : BoundPortfolio) (s : StressScenario) :
     (runPortfolioScenario p s).totalScrEur =
       (runPortfolioScenario p s).annualFinalNetLossEur +
@@ -266,6 +360,24 @@ theorem scenarioReport_scr_sum (p : BoundPortfolio) (s : StressScenario) :
       (runPortfolioScenario p s).counterpartyScrEur +
       (runPortfolioScenario p s).otherScrEur := by
   unfold runPortfolioScenario
+  rfl
+
+/-- **Season drain identity.** The capital that leaves the balance sheet is the
+net retained loss plus the reinstatement premium paid for it. -/
+theorem scenarioReport_drain_eq (p : BoundPortfolio) (s : StressScenario) :
+    (runPortfolioScenario p s).seasonLossDrainEur =
+      (runPortfolioScenario p s).annualFinalNetLossEur +
+        (runPortfolioScenario p s).totalReinstFeeEur := by
+  unfold runPortfolioScenario
+  rfl
+
+/-- **Post-season capital identity.** Own funds after the season are initial
+funds less the drain. -/
+theorem scenarioReport_postFunds_eq (p : BoundPortfolio) (s : StressScenario) :
+    (runPortfolioScenario p s).postSeasonOwnFundsEur =
+      (runPortfolioScenario p s).initialOwnFundsEur -
+        (runPortfolioScenario p s).seasonLossDrainEur := by
+  unfold runPortfolioScenario postSeasonOwnFunds
   rfl
 
 /-- The solvency flag is exactly the ratio test. -/

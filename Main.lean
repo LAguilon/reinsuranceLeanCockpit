@@ -74,7 +74,7 @@ def auditFile (path : String) (asJson : Bool) : IO Unit := do
 
 def printAlpineReport : IO Unit := do
   IO.println "=================================================================="
-  IO.println "   REINSURANCE LEAN COCKPIT v0.3 - FORMAL PORTFOLIO AUDITOR"
+  IO.println "   REINSURANCE LEAN COCKPIT v0.4 - FORMAL PORTFOLIO AUDITOR"
   IO.println "=================================================================="
   IO.println ""
   IO.println "[VERIFIED] Compile-time Lean 4 Theorems Checked:"
@@ -163,11 +163,16 @@ def printSimulation (r : ScenarioSimulationReport) : IO Unit := do
   IO.println s!"  Stop loss recovered:        {formatEurM r.stopLossRecoveredEur}"
   IO.println s!"  Final net loss:             {formatEurM r.annualFinalNetLossEur}"
   IO.println s!"  Reinstatement drag:         {formatEurM r.totalReinstFeeEur}"
-  IO.println s!"  Counterparty default SCR:   {formatEurM r.counterpartyScrEur}"
-  IO.println s!"  Other SCR:                  {formatEurM r.otherScrEur}"
-  IO.println s!"  Total SCR:                  {formatEurM r.totalScrEur} (Own Funds: {formatEurM r.ownFundsEur})"
+  IO.println s!"  Season loss drain:          {formatEurM r.seasonLossDrainEur}"
+  IO.println ""
+  IO.println s!"  Pre-season own funds:       {formatEurM r.initialOwnFundsEur}"
+  IO.println s!"  Post-season own funds:      {formatEurM r.postSeasonOwnFundsEur}  (after realised drain)"
+  IO.println s!"  Post-season SCR:            {formatEurM r.postSeasonScrEur}"
+  IO.println s!"  Counterparty default SCR:   {formatEurM r.counterpartyScrEur} (inside post-season SCR)"
+  IO.println s!"  Other SCR:                  {formatEurM r.otherScrEur} (inside post-season SCR)"
   let status := if r.isSolvent then "SOLVENT (OK)" else "REGULATORY BREACH (<100%)"
-  IO.println s!"  Solvency II Ratio:          {r.solvencyRatioPct}% -> {status}"
+  IO.println s!"  Pre-season ratio:           {r.preSeasonSolvencyRatioPct}%"
+  IO.println s!"  Post-season ratio:          {r.solvencyRatioPct}% -> {status}"
   IO.println "=================================================================="
 
 def simulateFile (portfolioPath scenarioPath : String) (asJson : Bool) : IO Unit := do
