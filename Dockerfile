@@ -4,9 +4,19 @@
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim AS lean-builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl git ca-certificates build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# The Debian mirror occasionally serves a truncated package; retry once from a
+# clean cache rather than failing the whole image on a transient hash mismatch.
+RUN set -eux; \
+    # HTTPS: some environments front deb.debian.org with a proxy that truncates
+    # large .debs over plain HTTP (hash-sum mismatch). TLS avoids it.
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
+      [ -f "$f" ] && sed -i 's|http://deb.debian.org|https://deb.debian.org|' "$f" || true; \
+    done; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl git ca-certificates build-essential \
+      || (apt-get clean && apt-get update && apt-get install -y --fix-missing --no-install-recommends \
+            curl git ca-certificates build-essential); \
+    rm -rf /var/lib/apt/lists/*
 
 ENV ELAN_HOME=/root/.elan
 RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
