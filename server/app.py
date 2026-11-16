@@ -26,6 +26,8 @@ WEB = ROOT / "web"
 LEAN_BIN = ROOT / ".lake" / "build" / "bin" / "cockpit"
 EXAMPLES = ROOT / "examples"
 SLIPS = EXAMPLES / "slips"
+FAC_SLIPS = EXAMPLES / "fac_slips"
+FAC_BUNDLE = EXAMPLES / "us_facultative_desk.json"
 
 sys.path.insert(0, str(ROOT / "server"))
 import slip_parser  # noqa: E402
@@ -137,6 +139,78 @@ def back_translate(contract: dict) -> str | None:
             os.unlink(path)
 
 
+FAC_CASE_LABELS = {
+    "FAC-AL-01": ("Auto Liability", "$500k xs $500k", "ALAE Pro-Rata in Addition",
+                  "FAC-AL-01_Auto_Liability_Cash_Call.pdf"),
+    "FAC-DO-02": ("D&O", "20% of $10M xs $10M", "ALAE Inside Limits",
+                  "FAC-DO-02_DO_Cash_Call.pdf"),
+    "FAC-WCA-03": ("Workers' Comp", "$500k xs $500k", "Indemnity Only",
+                   "FAC-WCA-03_Workers_Comp_Cash_Call.pdf"),
+    "FAC-GL-04": ("General Liability", "$500k xs $500k", "ALAE Pro-Rata in Addition",
+                  "FAC-GL-04_General_Liability_Cash_Call.pdf"),
+}
+
+
+def run_lean_fac(bundle: dict) -> tuple[dict, float]:
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+            json.dump(bundle, fh)
+            path = fh.name
+        return run_lean(["fac-audit", path, "--json"])
+    finally:
+        if path and os.path.exists(path):
+            os.unlink(path)
+
+
+def fac_cases(bundle: dict) -> list[dict]:
+    cases = []
+    for cert in bundle.get("certificates", []):
+        line, limit_label, clause, pdf = FAC_CASE_LABELS.get(
+            cert["certId"], (cert.get("line", ""), "custom", cert.get("alaeClause", ""), None)
+        )
+        cases.append(
+            {
+                "certId": cert["certId"],
+                "insured": cert.get("insuredName", ""),
+                "line": line,
+                "limitLabel": limit_label,
+                "alaeLabel": clause,
+                "pdfUrl": f"/api/fac-slips/{pdf}" if pdf else None,
+            }
+        )
+    return cases
+
+
+def workflow_trace(report: dict, bundle: dict) -> list[dict]:
+    n_certs = len(bundle.get("certificates", []))
+    n_claims = len(bundle.get("claims", []))
+    disputes = report.get("disputeCount", 0)
+    approved = n_claims - disputes
+    return [
+        {
+            "step": 1,
+            "name": "Cash-Call & Certificate Reader",
+            "detail": f"Parsed {n_certs} certificates and {n_claims} Q3 cash calls; matched each claim to its certificate and extracted attachment, limit, signed share and ALAE clause.",
+        },
+        {
+            "step": 2,
+            "name": "Lean 4 Kernel Verifier",
+            "detail": f"Recomputed every payable in exact integer arithmetic. {disputes} of {n_claims} cash calls failed verification; each verdict cites the clause that decided it.",
+        },
+        {
+            "step": 3,
+            "name": "Technical Accounting Ledger",
+            "detail": f"Produced {n_claims} journal vouchers splitting each verified amount into indemnity and ALAE debits against cedent payable. Debits equal credits on all {n_claims}.",
+        },
+        {
+            "step": 4,
+            "name": "Broker Settlement / Dispute Memo",
+            "detail": f"Drafted {disputes} dispute notices and {approved} approvals. Net adjustment: ${report.get('totalOverbilledUsd', 0) - report.get('totalUnderbilledUsd', 0):,}.",
+        },
+    ]
+
+
 def read_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -195,8 +269,12 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"theorems": data, "count": len(data), "leanExecMs": ms})
             if path == "/api/presets":
                 return self.send_json(self.presets())
+            if path == "/api/fac-presets":
+                return self.send_json(self.fac_presets())
             if path.startswith("/api/slips/"):
                 return self.send_slip(path[len("/api/slips/"):])
+            if path.startswith("/api/fac-slips/"):
+                return self.send_fac_slip(path[len("/api/fac-slips/"):])
             return super().do_GET()
         except Exception as exc:  # noqa: BLE001 - surface the message, not a stack
             self.error_json(str(exc), 500)
@@ -213,6 +291,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({**report, "leanExecMs": ms})
             if path == "/api/parse-slip":
                 return self.send_json(self.parse_slip(body))
+            if path == "/api/fac-audit":
+                bundle = body.get("bundle") or read_json(FAC_BUNDLE)
+                report, ms = run_lean_fac(bundle)
+                return self.send_json({**report, "workflowTrace": workflow_trace(report, bundle), "leanExecMs": ms})
             return self.error_json("unknown endpoint", 404)
         except KeyError as exc:
             self.error_json(f"missing field: {exc}", 400)
@@ -234,6 +316,31 @@ class Handler(SimpleHTTPRequestHandler):
             "scenario": read_json(scenario_path) if scenario_path.exists() else None,
             "slips": slip_list(),
         }
+
+    def fac_presets(self) -> dict:
+        bundle = read_json(FAC_BUNDLE)
+        report, ms = run_lean_fac(bundle)
+        return {
+            "deskName": bundle.get("deskName", "US Facultative Desk"),
+            "bundle": bundle,
+            "cases": fac_cases(bundle),
+            "report": report,
+            "workflowTrace": workflow_trace(report, bundle),
+            "leanExecMs": ms,
+        }
+
+    def send_fac_slip(self, filename: str) -> None:
+        safe = Path(filename).name
+        path = FAC_SLIPS / safe
+        if not path.exists() or path.suffix.lower() != ".pdf":
+            return self.error_json("cash-call slip not found", 404)
+        data = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'inline; filename="{safe}"')
+        self.end_headers()
+        self.wfile.write(data)
 
     def send_slip(self, filename: str) -> None:
         safe = Path(filename).name

@@ -1,0 +1,83 @@
+{
+  "deskName": "Continental Re - US Facultative Casualty Desk (Q3 2026)",
+  "certificates": [
+    {
+      "certId": "FAC-AL-01",
+      "insuredName": "Midwest Fleet Logistics Inc.",
+      "cedentName": "Continental Re",
+      "line": "AutoLiability",
+      "attachmentUsd": 500000,
+      "occLimitUsd": 500000,
+      "signedShareBps": 10000,
+      "alaeClause": "proRataInAddition"
+    },
+    {
+      "certId": "FAC-DO-02",
+      "insuredName": "Apex BioTech Corp.",
+      "cedentName": "Continental Re",
+      "line": "DirectorsOfficers",
+      "attachmentUsd": 10000000,
+      "occLimitUsd": 10000000,
+      "signedShareBps": 2000,
+      "alaeClause": "includedInLimit"
+    },
+    {
+      "certId": "FAC-WCA-03",
+      "insuredName": "Pacific Manufacturing Co.",
+      "cedentName": "Continental Re",
+      "line": "WorkersComp",
+      "attachmentUsd": 500000,
+      "occLimitUsd": 500000,
+      "signedShareBps": 10000,
+      "alaeClause": "excluded"
+    },
+    {
+      "certId": "FAC-GL-04",
+      "insuredName": "Tri-State Builders LLC",
+      "cedentName": "Continental Re",
+      "line": "GeneralLiability",
+      "attachmentUsd": 500000,
+      "occLimitUsd": 500000,
+      "signedShareBps": 10000,
+      "alaeClause": "proRataInAddition"
+    }
+  ],
+  "claims": [
+    {
+      "claimId": "CC-AL-01",
+      "certId": "FAC-AL-01",
+      "lossDesc": "Fleet collision, multiple claimants",
+      "groundUpIndemnityUsd": 450000,
+      "groundUpAlaeUsd": 180000,
+      "priorPaidUsd": 0,
+      "cedentBilledNowUsd": 130000
+    },
+    {
+      "claimId": "CC-DO-02",
+      "certId": "FAC-DO-02",
+      "lossDesc": "Securities class action defence",
+      "groundUpIndemnityUsd": 16000000,
+      "groundUpAlaeUsd": 6000000,
+      "priorPaidUsd": 0,
+      "cedentBilledNowUsd": 2400000
+    },
+    {
+      "claimId": "CC-WCA-03",
+      "certId": "FAC-WCA-03",
+      "lossDesc": "Cumulative indemnity, Q1-Q3",
+      "groundUpIndemnityUsd": 850000,
+      "groundUpAlaeUsd": 0,
+      "priorPaidUsd": 200000,
+      "cedentBilledNowUsd": 350000
+    },
+    {
+      "claimId": "CC-GL-04",
+      "certId": "FAC-GL-04",
+      "lossDesc": "Construction site injury",
+      "groundUpIndemnityUsd": 750000,
+      "groundUpAlaeUsd": 90000,
+      "priorPaidUsd": 0,
+      "cedentBilledNowUsd": 280000
+    }
+  ]
+}

@@ -93,3 +93,16 @@ open ReinsuranceLeanCockpit
 #print axioms isValid_quotaShare_shareBps
 #print axioms checkContractDetails_eq_nil_of_valid
 #print axioms portfolioValidationErrors_nil
+
+/-! ### v0.5 — US facultative desk -/
+
+#print axioms proRataAlae_le_alae
+#print axioms facIncluded_capped_by_share
+#print axioms fac_no_overrecovery
+#print axioms facIncremental_conservation
+#print axioms facOverbill_reconciliation
+#print axioms facJournal_balanced
+#print axioms facVerified_le_cumulative
+#print axioms facBilled_reconciles
+#print axioms verified_FacNoOverRecovery
+#print axioms verified_FacJournalBalanced

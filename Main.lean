@@ -192,6 +192,32 @@ def informalizeFile (path : String) : IO Unit := do
       | .error e => throw (IO.userError s!"{path}: invalid contract: {e}")
       | .ok c => IO.println (informalizeContract c)
 
+def printFacAudit (a : FacPortfolioAudit) : IO Unit := do
+  IO.println "=================================================================="
+  IO.println s!"  US FACULTATIVE XoL CASH-CALL AUDIT: {a.deskName}"
+  IO.println s!"  {a.results.length} cash calls | {a.disputeCount} disputed"
+  IO.println "=================================================================="
+  IO.println "  cert / claim            billed        verified        over   verdict"
+  for r in a.results do
+    IO.println s!"  {r.certId} / {r.claimId}   {usd r.cedentBilledNowUsd}   {usd r.verifiedIncrementalDueUsd}   {usd r.overbilledUsd}   {r.verdict}"
+    IO.println s!"      indemnity {usd r.ourIndemnityUsd} + ALAE {usd r.ourAlaeUsd} = cumulative {usd r.ourCumulativePayableUsd}; prior paid {usd r.priorPaidUsd}"
+    IO.println s!"      {r.explanation}"
+    IO.println s!"      journal: debit indemnity {usd r.journal.debitIndemnityIncrementalUsd} + debit ALAE {usd r.journal.debitAlaeIncrementalUsd} = credit cedent {usd r.journal.creditCedantPayableUsd}"
+  IO.println ""
+  IO.println s!"  TOTAL BILLED:     {usd a.totalBilledUsd}"
+  IO.println s!"  TOTAL VERIFIED:   {usd a.totalVerifiedUsd}"
+  IO.println s!"  OVERBILLED:       {usd a.totalOverbilledUsd}"
+  IO.println s!"  UNDERBILLED:      {usd a.totalUnderbilledUsd}"
+  IO.println "=================================================================="
+
+def facAuditFile (path : String) (asJson : Bool) : IO Unit := do
+  let bundle ← loadFacBundle path
+  let report := auditFacBundle bundle
+  if asJson then
+    IO.println (Json.compress (ToJson.toJson report))
+  else
+    printFacAudit report
+
 def printTheorems (asJson : Bool) : IO Unit := do
   if asJson then
     IO.println verifiedTheoremsJson
@@ -209,6 +235,7 @@ def usage : IO Unit := do
   IO.println "  cockpit simulate <portfolio.json> <scenario.json> [--json]"
   IO.println "  cockpit theorems [--json]            kernel proof registry"
   IO.println "  cockpit informalize <contract.json>  Lean-to-English back-translation"
+  IO.println "  cockpit fac-audit <bundle.json> [--json]  US facultative cash-call audit"
 
 def main (args : List String) : IO Unit := do
   match args with
@@ -219,6 +246,8 @@ def main (args : List String) : IO Unit := do
   | ["simulate", portfolioPath, scenarioPath, "--json"] =>
       simulateFile portfolioPath scenarioPath true
   | ["informalize", path] => informalizeFile path
+  | ["fac-audit", path] => facAuditFile path false
+  | ["fac-audit", path, "--json"] => facAuditFile path true
   | ["theorems"] => printTheorems false
   | ["theorems", "--json"] => printTheorems true
   | _ => usage

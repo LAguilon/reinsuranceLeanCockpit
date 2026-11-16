@@ -78,7 +78,7 @@ def check_q1() -> None:
     (ok if "sorry" not in code else bad)("contains no sorry", "")
 
     specs = re.findall(r"^def (Spec_\w+)\s*:\s*Prop", code, re.M)
-    (ok if len(specs) == 8 else bad)("declares 8 named specifications", f"found {len(specs)}")
+    (ok if len(specs) == 10 else bad)("declares 10 named specifications", f"found {len(specs)}")
     for name in specs:
         print(f"        · {name}")
 

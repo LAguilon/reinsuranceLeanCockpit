@@ -1,4 +1,5 @@
 import ReinsuranceLeanCockpit.Simulation
+import ReinsuranceLeanCockpit.Facultative
 import Lean.Data.Json
 
 namespace ReinsuranceLeanCockpit
@@ -521,11 +522,180 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "verified_AlpineUniversalFxFix" "TrustProofs"
       "Discharges Spec_AlpineUniversalFxFix: the FX fix holds for every loss and rate."
   , theoremRecord "verified_NonVacuityWitness" "TrustProofs"
-      "Discharges Spec_NonVacuityWitness: a concrete valid contract really pays." ]
+      "Discharges Spec_NonVacuityWitness: a concrete valid contract really pays."
+  , theoremRecord "proRataAlae_le_alae" "Facultative"
+      "Pro-rata ALAE never exceeds the ALAE it prorates."
+  , theoremRecord "facIncluded_capped_by_share" "Facultative"
+      "Defence inside limits is capped by the 100% limit times the signed share."
+  , theoremRecord "fac_no_overrecovery" "Facultative"
+      "Across all three ALAE clauses, payout never exceeds ground-up indemnity plus ALAE."
+  , theoremRecord "facIncremental_conservation" "Facultative"
+      "Prior paid plus the incremental due equals cumulative liability."
+  , theoremRecord "facOverbill_reconciliation" "Facultative"
+      "Verified plus overbilled equals what the cedent billed."
+  , theoremRecord "facJournal_balanced" "Facultative"
+      "Every journal voucher has total debits equal to total credits."
+  , theoremRecord "facVerified_le_cumulative" "Facultative"
+      "The verified increment never exceeds cumulative liability."
+  , theoremRecord "facBilled_reconciles" "Facultative"
+      "Verified plus overbilled equals billed at the audit-result level."
+  , theoremRecord "verified_FacNoOverRecovery" "TrustProofs"
+      "Discharges Spec_FacNoOverRecovery for the US facultative desk."
+  , theoremRecord "verified_FacJournalBalanced" "TrustProofs"
+      "Discharges Spec_FacJournalBalanced: debits always equal credits." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)
 
 def theoremCount : Nat := verifiedTheorems.length
+
+/-! ## US facultative desk codecs -/
+
+def facLineOfString? : String → Option FacLine
+  | "AutoLiability" | "AL" => some .AutoLiability
+  | "GeneralLiability" | "GL" => some .GeneralLiability
+  | "WorkersComp" | "WCA" | "WC" => some .WorkersComp
+  | "DirectorsOfficers" | "DO" | "D&O" => some .DirectorsOfficers
+  | _ => none
+
+def alaeOfString? : String → Option AlaeClause
+  | "includedInLimit" | "IncludedInLimit" => some .includedInLimit
+  | "proRataInAddition" | "ProRataInAddition" => some .proRataInAddition
+  | "excluded" | "Excluded" => some .excluded
+  | _ => none
+
+instance : ToJson FacLine := ⟨fun l => Json.str l.toString⟩
+instance : ToJson AlaeClause := ⟨fun a => Json.str a.toString⟩
+
+instance : FromJson FacLine where
+  fromJson? j := do
+    let s ← j.getStr?
+    match facLineOfString? s with
+    | some l => pure l
+    | none => throw s!"unknown facultative line: {s}"
+
+instance : FromJson AlaeClause where
+  fromJson? j := do
+    let s ← j.getStr?
+    match alaeOfString? s with
+    | some a => pure a
+    | none => throw s!"unknown ALAE clause: {s}"
+
+instance : ToJson FacCertificate where
+  toJson c :=
+    Json.mkObj
+      [ ("certId", Json.str c.certId)
+      , ("insuredName", Json.str c.insuredName)
+      , ("cedentName", Json.str c.cedentName)
+      , ("line", ToJson.toJson c.line)
+      , ("attachmentUsd", ToJson.toJson c.attachmentUsd)
+      , ("occLimitUsd", ToJson.toJson c.occLimitUsd)
+      , ("signedShareBps", ToJson.toJson c.signedShareBps)
+      , ("alaeClause", ToJson.toJson c.alaeClause) ]
+
+instance : FromJson FacCertificate where
+  fromJson? j := do
+    let certId ← j.getObjValAs? String "certId"
+    let insuredName ← j.getObjValAs? String "insuredName"
+    let cedentName ← j.getObjValAs? String "cedentName"
+    let line ← j.getObjValAs? FacLine "line"
+    let attachmentUsd ← j.getObjValAs? Nat "attachmentUsd"
+    let occLimitUsd ← j.getObjValAs? Nat "occLimitUsd"
+    let signedShareBps ← j.getObjValAs? Nat "signedShareBps"
+    let alaeClause ← j.getObjValAs? AlaeClause "alaeClause"
+    pure { certId := certId, insuredName := insuredName, cedentName := cedentName,
+           line := line, attachmentUsd := attachmentUsd, occLimitUsd := occLimitUsd,
+           signedShareBps := signedShareBps, alaeClause := alaeClause }
+
+instance : ToJson FacClaimSubmission where
+  toJson s :=
+    Json.mkObj
+      [ ("claimId", Json.str s.claimId)
+      , ("certId", Json.str s.certId)
+      , ("lossDesc", Json.str s.lossDesc)
+      , ("groundUpIndemnityUsd", ToJson.toJson s.groundUpIndemnityUsd)
+      , ("groundUpAlaeUsd", ToJson.toJson s.groundUpAlaeUsd)
+      , ("priorPaidUsd", ToJson.toJson s.priorPaidUsd)
+      , ("cedentBilledNowUsd", ToJson.toJson s.cedentBilledNowUsd) ]
+
+instance : FromJson FacClaimSubmission where
+  fromJson? j := do
+    let claimId ← j.getObjValAs? String "claimId"
+    let certId ← j.getObjValAs? String "certId"
+    let lossDesc ← j.getObjValAs? String "lossDesc"
+    let groundUpIndemnityUsd ← j.getObjValAs? Nat "groundUpIndemnityUsd"
+    let groundUpAlaeUsd ← j.getObjValAs? Nat "groundUpAlaeUsd"
+    let priorPaidUsd ← j.getObjValAs? Nat "priorPaidUsd"
+    let cedentBilledNowUsd ← j.getObjValAs? Nat "cedentBilledNowUsd"
+    pure { claimId := claimId, certId := certId, lossDesc := lossDesc,
+           groundUpIndemnityUsd := groundUpIndemnityUsd, groundUpAlaeUsd := groundUpAlaeUsd,
+           priorPaidUsd := priorPaidUsd, cedentBilledNowUsd := cedentBilledNowUsd }
+
+instance : ToJson FacJournalVoucher where
+  toJson v :=
+    Json.mkObj
+      [ ("debitIndemnityIncrementalUsd", ToJson.toJson v.debitIndemnityIncrementalUsd)
+      , ("debitAlaeIncrementalUsd", ToJson.toJson v.debitAlaeIncrementalUsd)
+      , ("creditCedantPayableUsd", ToJson.toJson v.creditCedantPayableUsd)
+      , ("totalDebitUsd", ToJson.toJson v.totalDebitUsd)
+      , ("totalCreditUsd", ToJson.toJson v.totalCreditUsd) ]
+
+instance : ToJson FacAuditResult where
+  toJson r :=
+    Json.mkObj
+      [ ("certId", Json.str r.certId)
+      , ("claimId", Json.str r.claimId)
+      , ("insuredName", Json.str r.insuredName)
+      , ("line", Json.str r.line)
+      , ("verdict", Json.str r.verdict)
+      , ("explanation", Json.str r.explanation)
+      , ("ourIndemnityUsd", ToJson.toJson r.ourIndemnityUsd)
+      , ("ourAlaeUsd", ToJson.toJson r.ourAlaeUsd)
+      , ("ourCumulativePayableUsd", ToJson.toJson r.ourCumulativePayableUsd)
+      , ("priorPaidUsd", ToJson.toJson r.priorPaidUsd)
+      , ("verifiedIncrementalDueUsd", ToJson.toJson r.verifiedIncrementalDueUsd)
+      , ("cedentBilledNowUsd", ToJson.toJson r.cedentBilledNowUsd)
+      , ("overbilledUsd", ToJson.toJson r.overbilledUsd)
+      , ("underbilledUsd", ToJson.toJson r.underbilledUsd)
+      , ("journal", ToJson.toJson r.journal)
+      , ("brokerMemo", Json.str r.brokerMemo) ]
+
+instance : ToJson FacPortfolioAudit where
+  toJson a :=
+    Json.mkObj
+      [ ("deskName", Json.str a.deskName)
+      , ("results", ToJson.toJson a.results)
+      , ("totalBilledUsd", ToJson.toJson a.totalBilledUsd)
+      , ("totalVerifiedUsd", ToJson.toJson a.totalVerifiedUsd)
+      , ("totalOverbilledUsd", ToJson.toJson a.totalOverbilledUsd)
+      , ("totalUnderbilledUsd", ToJson.toJson a.totalUnderbilledUsd)
+      , ("disputeCount", ToJson.toJson a.disputeCount) ]
+
+instance : ToJson FacBundle where
+  toJson b :=
+    Json.mkObj
+      [ ("deskName", Json.str b.deskName)
+      , ("certificates", ToJson.toJson b.certificates)
+      , ("claims", ToJson.toJson b.claims) ]
+
+instance : FromJson FacBundle where
+  fromJson? j := do
+    let deskName ← j.getObjValAs? String "deskName"
+    let certificates ← j.getObjValAs? (List FacCertificate) "certificates"
+    let claims ← j.getObjValAs? (List FacClaimSubmission) "claims"
+    pure { deskName := deskName, certificates := certificates, claims := claims }
+
+def loadFacBundle (path : System.FilePath) : IO FacBundle := do
+  let text ← IO.FS.readFile path
+  match Json.parse text with
+  | .error e => throw (IO.userError s!"{path}: invalid JSON: {e}")
+  | .ok j =>
+      match fromJson? j with
+      | .error e => throw (IO.userError s!"{path}: invalid facultative bundle: {e}")
+      | .ok b => pure b
+
+def facAuditJson (path : System.FilePath) : IO String := do
+  let b ← loadFacBundle path
+  pure (Json.compress (ToJson.toJson (auditFacBundle b)))
 
 end ReinsuranceLeanCockpit

@@ -642,6 +642,7 @@ async function init() {
 
     renderTabs();
     setupSlipUI();
+    setupFacUI();
 
     $("#portfolioSelect").addEventListener("change", (e) => selectPreset(e.target.value));
     $("#resetBtn").addEventListener("click", resetPortfolio);
@@ -659,6 +660,8 @@ async function init() {
     renderTrust();
     await loadTheorems();
     await selectPreset(state.presets.portfolios[0].id);
+    await loadFac();
+    showView("fac");
   } catch (err) {
     document.body.insertAdjacentHTML(
       "afterbegin",
@@ -668,3 +671,201 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+/* ==================== US Facultative Accounting Desk ==================== */
+
+state.fac = { loaded: false, presets: null, bundle: null, cases: [], selected: null };
+
+const usd = (n) => "$" + Number(n || 0).toLocaleString("en-US");
+
+function showView(name) {
+  document.querySelectorAll(".wtab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+  document.querySelectorAll(".view").forEach((v) => {
+    v.hidden = v.id !== `view-${name}`;
+  });
+  if (name === "fac" && !state.fac.loaded) loadFac();
+}
+
+function renderFacSummary(report) {
+  $("#facBilledTotal").textContent = usd(report.totalBilledUsd);
+  $("#facVerifiedTotal").textContent = usd(report.totalVerifiedUsd);
+  $("#facOverTotal").textContent = usd(report.totalOverbilledUsd);
+  $("#facDisputeTotal").textContent = `${report.disputeCount} of ${report.results.length}`;
+}
+
+function renderFacCases(cases, bundle) {
+  $("#facCases").innerHTML = cases
+    .map((c) => {
+      const pdf = c.pdfUrl
+        ? `<a class="pdf-link" href="${c.pdfUrl}" target="_blank" rel="noopener">View Cash-Call PDF</a>`
+        : "";
+      return `<button class="case-chip" data-cert="${c.certId}">
+        <span class="case-line">${c.line}</span>
+        <span class="case-limit">${c.limitLabel}</span>
+        <span class="case-insured">${c.insured}</span>
+        <span class="case-clause">${c.alaeLabel}</span>
+        ${pdf}
+      </button>`;
+    })
+    .join("");
+  document.querySelectorAll(".case-chip").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      if (e.target.classList.contains("pdf-link")) return;
+      selectFacCase(btn.dataset.cert);
+    });
+  });
+}
+
+function findFacCase(certId) {
+  const bundle = state.fac.bundle;
+  const cert = bundle.certificates.find((c) => c.certId === certId);
+  const claim = bundle.claims.find((c) => c.certId === certId);
+  return { cert, claim };
+}
+
+function selectFacCase(certId) {
+  const { cert, claim } = findFacCase(certId);
+  if (!cert || !claim) return;
+  state.fac.selected = certId;
+  document.querySelectorAll(".case-chip").forEach((b) => b.classList.toggle("active", b.dataset.cert === certId));
+  $("#facSelectedLabel").textContent = `${cert.certId} · ${cert.insuredName}`;
+  $("#facInd").value = claim.groundUpIndemnityUsd;
+  $("#facAlae").value = claim.groundUpAlaeUsd;
+  $("#facPrior").value = claim.priorPaidUsd;
+  $("#facBilledInput").value = claim.cedentBilledNowUsd;
+  $("#facShare").value = cert.signedShareBps;
+  $("#facAtt").value = cert.attachmentUsd;
+  $("#facLimit").value = cert.occLimitUsd;
+  $("#facClause").value = cert.alaeClause;
+  runFacAudit();
+}
+
+function facBundleFromForm() {
+  const base = findFacCase(state.fac.selected);
+  const cert = {
+    ...base.cert,
+    signedShareBps: Number($("#facShare").value),
+    attachmentUsd: Number($("#facAtt").value),
+    occLimitUsd: Number($("#facLimit").value),
+    alaeClause: $("#facClause").value,
+  };
+  const claim = {
+    ...base.claim,
+    groundUpIndemnityUsd: Number($("#facInd").value),
+    groundUpAlaeUsd: Number($("#facAlae").value),
+    priorPaidUsd: Number($("#facPrior").value),
+    cedentBilledNowUsd: Number($("#facBilledInput").value),
+  };
+  return {
+    deskName: state.fac.bundle.deskName,
+    certificates: [cert],
+    claims: [claim],
+  };
+}
+
+function renderFacSteps(r, trace) {
+  const steps = [
+    {
+      n: 1,
+      name: "Cash-Call & Certificate Reader",
+      detail: `${r.line} · ${r.insuredName} · certificate ${r.certId} · claim ${r.claimId}`,
+      tag: "PARSED",
+      cls: "",
+    },
+    {
+      n: 2,
+      name: "Lean 4 Kernel Verifier",
+      detail: r.explanation,
+      tag: r.verdict,
+      cls: r.verdict === "APPROVED_EXACT" ? "ok" : "bad",
+    },
+    {
+      n: 3,
+      name: "Technical Accounting Ledger",
+      detail: `Debits ${usd(r.journal.totalDebitUsd)} = credits ${usd(r.journal.totalCreditUsd)} · theorem facJournal_balanced`,
+      tag: "BALANCED",
+      cls: "ok",
+    },
+    {
+      n: 4,
+      name: "Broker Settlement / Dispute Memo",
+      detail:
+        r.overbilledUsd > 0
+          ? `Dispute drafted for ${usd(r.overbilledUsd)}; settlement figure ${usd(r.verifiedIncrementalDueUsd)}.`
+          : `Approval drafted for ${usd(r.verifiedIncrementalDueUsd)}.`,
+      tag: "MEMO",
+      cls: "",
+    },
+  ];
+  $("#facSteps").innerHTML = steps
+    .map(
+      (s) => `<div class="step">
+        <div class="step-badge">${s.n}</div>
+        <div class="step-body">
+          <div class="step-head"><b>${s.name}</b><span class="step-tag ${s.cls}">${s.tag}</span></div>
+          <p>${s.detail}</p>
+        </div>
+      </div>`
+    )
+    .join("");
+
+  const j = r.journal;
+  $("#facJournal tbody").innerHTML = `
+    <tr><td>Debit · Ceded indemnity (incremental)</td><td class="num">${usd(j.debitIndemnityIncrementalUsd)}</td><td class="num">—</td></tr>
+    <tr><td>Debit · Ceded ALAE (incremental)</td><td class="num">${usd(j.debitAlaeIncrementalUsd)}</td><td class="num">—</td></tr>
+    <tr><td>Credit · Cedent payable</td><td class="num">—</td><td class="num">${usd(j.creditCedantPayableUsd)}</td></tr>`;
+  const balanced = j.totalDebitUsd === j.totalCreditUsd;
+  $("#facJournal tfoot").innerHTML = `
+    <tr class="total-row"><td>Total ${balanced ? "· BALANCED" : "· OUT OF BALANCE"}</td>
+      <td class="num ${balanced ? "ok" : "danger"}">${usd(j.totalDebitUsd)}</td>
+      <td class="num ${balanced ? "ok" : "danger"}">${usd(j.totalCreditUsd)}</td></tr>`;
+
+  $("#facMemo").textContent = r.brokerMemo;
+  $("#facLatency").textContent = trace ? `verified in ${trace} ms` : "";
+}
+
+async function runFacAudit() {
+  const btn = $("#facRun");
+  btn.disabled = true;
+  try {
+    const payload = { bundle: facBundleFromForm() };
+    const report = await api("/api/fac-audit", { method: "POST", body: JSON.stringify(payload) });
+    state.fac.report = report;
+    renderFacSteps(report.results[0], report.leanExecMs);
+  } catch (err) {
+    $("#facSteps").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadFac() {
+  try {
+    const data = await api("/api/fac-presets");
+    state.fac.presets = data;
+    state.fac.bundle = data.bundle;
+    state.fac.cases = data.cases;
+    state.fac.loaded = true;
+    renderFacSummary(data.report);
+    renderFacCases(data.cases, data.bundle);
+    selectFacCase(data.cases[0].certId);
+  } catch (err) {
+    $("#facCases").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
+  }
+}
+
+function setupFacUI() {
+  document.querySelectorAll(".wtab").forEach((btn) => {
+    btn.addEventListener("click", () => showView(btn.dataset.view));
+  });
+  $("#facRun").addEventListener("click", runFacAudit);
+  $("#facCopy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText($("#facMemo").textContent);
+      $("#facCopy").textContent = "Copied";
+      setTimeout(() => ($("#facCopy").textContent = "Copy memo"), 1200);
+    } catch {
+      $("#facCopy").textContent = "Select the text to copy";
+    }
+  });
+}

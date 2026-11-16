@@ -6,6 +6,13 @@ Contracts are total functions over exact integers. Every accounting identity and
 risk bound is a theorem proved by the Lean 4 kernel — for every loss, every FX
 rate, and every retrocession tower depth. No Mathlib, no `Float`, no `sorry`.
 
+**v0.5 adds a US facultative casualty accounting desk**: four bound certificates
+(AL, GL, WCA, D&O) audited against four Q3 cedent cash calls, **$730,000 of
+overbilling caught across three disputes**, a double-entry journal per claim
+proved to balance, and a broker memo drafted from the arithmetic. Read the
+[**User & Architecture Guide**](docs/USER_GUIDE.md) first if you are an
+accountant rather than an engineer.
+
 **v0.4** fixes the post-season balance sheet. Own funds now erode by the realised
 season drain, aggregate limits erode across events, and the solvency curve is
 proved monotone in `Monotonicity.lean` — a bigger loss can no longer leave the
@@ -28,6 +35,69 @@ lake build                 # ~10s from clean, zero dependencies
 python3 server/app.py      # → http://localhost:8080
 python3 scripts/test_e2e.py
 ```
+
+---
+
+## US facultative accounting desk (v0.5)
+
+A facultative certificate is a single-risk layer: attachment, 100% limit, signed
+share, and — the part that decides most disputes — where ALAE sits.
+
+| Case | Certificate | Clause | Billed | Verified | Verdict |
+|---|---|---|---|---|---|
+| FAC-AL-01 | Auto Liability $500k xs $500k, 100% | Pro-rata in addition | $130,000 | **$0** | overbilled $130,000 |
+| FAC-DO-02 | D&O 20% of $10M xs $10M | Included within limits | $2,400,000 | **$2,000,000** | overbilled $400,000 |
+| FAC-WCA-03 | Workers' Comp $500k xs $500k, 100% | Excluded | $350,000 | **$150,000** | overbilled $200,000 |
+| FAC-GL-04 | General Liability $500k xs $500k, 100% | Pro-rata in addition | $280,000 | **$280,000** | exact |
+
+Totals: **$3,160,000 billed, $2,430,000 verified, $730,000 overbilling caught.**
+
+The three failure modes are the three real ones:
+
+* **Defence cannot pierce an attachment.** FAC-AL-01 has $450,000 of indemnity
+  against a $500,000 attachment, so there is no ceded indemnity and therefore no
+  pro-rata ALAE to add. The cedent billed $130,000 for a layer that owes nothing.
+* **Defence inside limits caps the layer.** FAC-DO-02's $22M combined loss is
+  capped at the $10M limit, and 20% of that is $2,000,000 — not 20% of the
+  pre-cap total.
+* **Prior paid is cumulative.** FAC-WCA-03 billed the full $350,000 cumulative
+  layer position without deducting $200,000 already settled.
+
+### Kernel-checked desk invariants
+
+| Theorem | Statement |
+|---|---|
+| `proRataAlae_le_alae` | pro-rata ALAE never exceeds the ALAE it prorates |
+| `facIncluded_capped_by_share` | defence inside limits is capped by limit × signed share |
+| `fac_no_overrecovery` | across all three ALAE clauses, payout ≤ ground-up indemnity + ALAE |
+| `facIncremental_conservation` | prior paid + incremental due = cumulative liability |
+| `facOverbill_reconciliation` | verified + overbilled = billed |
+| `facJournal_balanced` | **total debits = total credits, for every claim** |
+| `facVerified_le_cumulative` | the increment never exceeds cumulative liability |
+| `facBilled_reconciles` | verified + overbilled = billed at the audit-result level |
+
+### CLI
+
+```bash
+lake exe cockpit fac-audit examples/us_facultative_desk.json
+lake exe cockpit fac-audit examples/us_facultative_desk.json --json
+```
+
+### API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/fac-presets` | four certificates, four cash calls, PDF links, Lean summary |
+| POST | `/api/fac-audit` | audit any bundle, returns the report plus a 4-step workflow trace |
+| GET | `/api/fac-slips/<name>` | the original cedent cash-call PDF |
+
+### Web workspace
+
+Three tabs: **US Facultative Accounting Desk** (default), **Treaty Portfolio &
+Solvency Cockpit** (all v0.1–v0.4 panels), and **How It Works** (plain-English
+guide for accounting colleagues). The desk shows a summary strip, four case
+chips with PDF links, an editable calculator, the four autonomous steps, a
+debit/credit voucher, and a copyable broker memo.
 
 ---
 
@@ -189,7 +259,7 @@ the outward tower in inuring order. Stop losses then apply to the season total.
 
 ## What is proved
 
-66 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
+76 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
 
 | Theorem | Statement |
 |---|---|
@@ -239,7 +309,7 @@ Five panels, vanilla HTML/CSS/JS, no framework and no build step:
    gap-closer removes the red block; the Cayman slip adds a credit cliff; the
    115% quota share is rejected with the failing bound quoted.
 5. **Simulator + proof registry** — editable FX rates and event list, a live
-   `POST /api/simulate`, and the collapsible table of all 57 theorems.
+   `POST /api/simulate`, and the collapsible table of all 76 theorems.
 
 ### API
 
@@ -316,14 +386,16 @@ ReinsuranceLeanCockpit/
   Validation.lean  Simulation.lean  Ingestion.lean   # v0.3
   Monotonicity.lean                                  # v0.4
   TrustBoundary.lean  TrustProofs.lean               # v0.4 trust architecture
+  Facultative.lean                                   # v0.5 US facultative desk
 Main.lean
 server/app.py  server/slip_parser.py
 web/index.html  web/styles.css  web/app.js
 scripts/generate_sample_pdfs.py  scripts/test_e2e.py
-scripts/AxiomAudit.lean  scripts/paranoid_audit.py
+scripts/AxiomAudit.lean  scripts/paranoid_audit.py  docs/USER_GUIDE.md
 examples/continental_re_portfolio.json  examples/continental_re_fixed.json
 examples/scenarios/global_twin_cat_fx_shock.json
 examples/slips/*.pdf  examples/slips/*.txt
+examples/fac_slips/*.pdf  examples/us_facultative_desk.json
 ```
 
 ## License

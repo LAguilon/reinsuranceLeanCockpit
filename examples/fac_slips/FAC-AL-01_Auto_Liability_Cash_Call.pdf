@@ -1,0 +1,73 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 773 >>
+stream
+BT
+/F1 9 Tf
+40 800 Td
+12 TL
+(CEDANT CASH CALL - QUARTERLY STATEMENT) Tj
+T*
+(==================================================) Tj
+T*
+(Cash_Call_ID: CC-AL-01) Tj
+T*
+(Certificate_ID: FAC-AL-01) Tj
+T*
+(Insured: Midwest Fleet Logistics Inc.) Tj
+T*
+(Cedent: Continental Re) Tj
+T*
+(Line: AutoLiability) Tj
+T*
+(Attachment_USD: 500000) Tj
+T*
+(Occurrence_Limit_USD: 500000) Tj
+T*
+(Signed_Share_Bps: 10000) Tj
+T*
+(ALAE_Clause: proRataInAddition) Tj
+T*
+(Ground_Up_Indemnity_USD: 450000) Tj
+T*
+(Ground_Up_ALAE_USD: 180000) Tj
+T*
+(Prior_Paid_USD: 0) Tj
+T*
+(Cedent_Billed_Now_USD: 130000) Tj
+T*
+(--------------------------------------------------) Tj
+T*
+(Prepared by the cedent facultative accounting team.) Tj
+T*
+(Payment terms: 30 days from receipt of a corrected statement.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000317 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1141
+%%EOF

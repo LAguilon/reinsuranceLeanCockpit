@@ -1,0 +1,18 @@
+CEDANT CASH CALL - QUARTERLY STATEMENT
+==================================================
+Cash_Call_ID: CC-DO-02
+Certificate_ID: FAC-DO-02
+Insured: Apex BioTech Corp.
+Cedent: Continental Re
+Line: DirectorsOfficers
+Attachment_USD: 10000000
+Occurrence_Limit_USD: 10000000
+Signed_Share_Bps: 2000
+ALAE_Clause: includedInLimit
+Ground_Up_Indemnity_USD: 16000000
+Ground_Up_ALAE_USD: 6000000
+Prior_Paid_USD: 0
+Cedent_Billed_Now_USD: 2400000
+--------------------------------------------------
+Prepared by the cedent facultative accounting team.
+Payment terms: 30 days from receipt of a corrected statement.

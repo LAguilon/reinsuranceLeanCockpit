@@ -23,6 +23,13 @@
   </div>
 </header>
 
+<nav class="workspace-tabs" id="workspaceTabs">
+  <button class="wtab active" data-view="fac">US Facultative Accounting Desk</button>
+  <button class="wtab" data-view="cockpit">Treaty Portfolio &amp; Solvency Cockpit</button>
+  <button class="wtab" data-view="guide">How It Works</button>
+</nav>
+
+<div id="view-cockpit" class="view" hidden>
 <section class="panel portfolio-bar">
   <label for="portfolioSelect">Working portfolio</label>
   <select id="portfolioSelect"></select>
@@ -166,6 +173,120 @@
     </table>
   </details>
 </section>
+
+
+</div><!-- /view-cockpit -->
+
+<div id="view-fac" class="view">
+  <section class="panel fac-summary">
+    <div class="fac-kpi"><span>Total cedent billed</span><strong id="facBilledTotal">—</strong></div>
+    <div class="fac-kpi"><span>Lean verified payable</span><strong id="facVerifiedTotal" class="ok">—</strong></div>
+    <div class="fac-kpi"><span>Overbilling caught &amp; saved</span><strong id="facOverTotal" class="danger">—</strong></div>
+    <div class="fac-kpi"><span>Disputed cash calls</span><strong id="facDisputeTotal">—</strong></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Q3 cedant cash calls</h2>
+      <span class="muted">Click a case to load it · each row links to the original PDF</span>
+    </div>
+    <div id="facCases" class="fac-cases"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Certificate calculator</h2>
+      <span id="facSelectedLabel" class="muted">—</span>
+    </div>
+    <div class="fac-grid">
+      <label>Ground-up indemnity (USD) <input id="facInd" type="number" min="0" /></label>
+      <label>Ground-up ALAE (USD) <input id="facAlae" type="number" min="0" /></label>
+      <label>Prior paid (USD) <input id="facPrior" type="number" min="0" /></label>
+      <label>Cedent billed now (USD) <input id="facBilledInput" type="number" min="0" /></label>
+      <label>Signed share (bps) <input id="facShare" type="number" min="1" max="10000" /></label>
+      <label>Attachment (USD) <input id="facAtt" type="number" min="0" /></label>
+      <label>Occurrence limit (USD) <input id="facLimit" type="number" min="1" /></label>
+      <label>ALAE clause
+        <select id="facClause">
+          <option value="proRataInAddition">Pro-Rata in Addition</option>
+          <option value="includedInLimit">Included Within Limits</option>
+          <option value="excluded">Excluded</option>
+        </select>
+      </label>
+    </div>
+    <button class="btn btn-primary" id="facRun">Run Agentic Cash-Call Audit</button>
+    <span id="facLatency" class="muted"></span>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>The four autonomous steps</h2>
+      <span class="muted">Everything below is rendered from the Lean binary's JSON</span>
+    </div>
+    <div id="facSteps" class="steps"></div>
+
+    <h3 class="sub-head">Step 3 · Technical accounting voucher</h3>
+    <table class="data-table journal" id="facJournal">
+      <thead>
+        <tr><th>Account</th><th>Debit</th><th>Credit</th></tr>
+      </thead>
+      <tbody></tbody>
+      <tfoot></tfoot>
+    </table>
+
+    <h3 class="sub-head">Step 4 · Broker settlement / dispute memo</h3>
+    <pre id="facMemo" class="code memo">—</pre>
+    <button class="btn btn-ghost" id="facCopy">Copy memo</button>
+  </section>
+</div>
+
+<div id="view-guide" class="view" hidden>
+  <section class="panel guide">
+    <h2>How this works, in plain English</h2>
+    <p class="lead">A facultative reinsurance desk receives a cash call from a cedent. The question is
+    always the same: <em>is this number right?</em> This cockpit answers it with a proof, not an opinion.</p>
+
+    <div class="guide-grid">
+      <div class="guide-card">
+        <h3>1 · A chatbot alone cannot be trusted with this</h3>
+        <p>Ask a language model to add up a claim and it may invent a number. Ask it to read an ALAE clause and it may
+        pick the wrong one. Both errors are fluent, confident, and expensive. The numbers here never come from a language
+        model: they come from a compiled Lean 4 program, where a wrong answer fails to compile.</p>
+      </div>
+      <div class="guide-card">
+        <h3>2 · Agentic means a pipeline, not a paragraph</h3>
+        <p>Four steps run in order: read the slip and the cash call; verify every figure against the certificate; post a
+        double-entry journal; draft the broker memo. Each step consumes the previous step's structured output, so a
+        number cannot be invented between steps — it is carried.</p>
+      </div>
+      <div class="guide-card">
+        <h3>3 · Lean 4 is the arithmetic</h3>
+        <p>Money is an exact integer number of US cents. There is no floating point anywhere, so there is no rounding
+        drift. The kernel proves that debits equal credits (<code>facJournal_balanced</code>) and that no clause can pay
+        more than ground-up indemnity plus ALAE (<code>fac_no_overrecovery</code>).</p>
+      </div>
+      <div class="guide-card">
+        <h3>4 · The clauses are the product</h3>
+        <p>ALAE inside the limit consumes the layer. ALAE pro-rata in addition pays on top, but only in proportion to
+        ceded indemnity — so it cannot pierce an attachment on its own. Prior paid is cumulative: the incremental due is
+        the cumulative liability less everything already settled.</p>
+      </div>
+    </div>
+
+    <h3 class="sub-head">The three verdicts you will see</h3>
+    <ul class="guide-list">
+      <li><b class="ok">APPROVED_EXACT</b> — the cash call equals the certificate arithmetic to the dollar.</li>
+      <li><b class="danger">DISPUTE_OVERBILLED</b> — the cedent billed more than the certificate supports; the memo
+      states the exact adjustment.</li>
+      <li><b class="warn">REVIEW_UNDERBILLED</b> — the cedent billed less than the certificate supports; usually a timing
+      or allocation question, not an error.</li>
+    </ul>
+
+    <h3 class="sub-head">Where to look next</h3>
+    <p>Full manual: <code>docs/USER_GUIDE.md</code>. Proof boundary: <code>TrustBoundary.lean</code> (10 named
+    specifications, no tactics). Verification: <code>python3 scripts/paranoid_audit.py</code>.</p>
+  </section>
+</div>
 
 <footer class="foot">ReinsuranceLean Cockpit · exact integer arithmetic · no floating point in the engine</footer>
 

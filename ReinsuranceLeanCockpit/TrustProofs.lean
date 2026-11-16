@@ -57,4 +57,10 @@ that. `decide` here evaluates the real function, not a restatement of it. -/
 theorem verified_NonVacuityWitness : Spec_NonVacuityWitness :=
   ⟨witnessContract, by decide, by decide⟩
 
+theorem verified_FacNoOverRecovery : Spec_FacNoOverRecovery :=
+  fun c ind alae h => fac_no_overrecovery c ind alae h
+
+theorem verified_FacJournalBalanced : Spec_FacJournalBalanced :=
+  fun c s => facJournal_balanced c s
+
 end ReinsuranceLeanCockpit

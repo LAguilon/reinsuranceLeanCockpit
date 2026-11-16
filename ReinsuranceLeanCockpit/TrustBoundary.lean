@@ -3,6 +3,7 @@ import ReinsuranceLeanCockpit.Contracts
 import ReinsuranceLeanCockpit.Validation
 import ReinsuranceLeanCockpit.Simulation
 import ReinsuranceLeanCockpit.AlpineShowcase
+import ReinsuranceLeanCockpit.Facultative
 
 /-!
 # Trust boundary: the eight statements a human should audit
@@ -75,5 +76,17 @@ actually pays something. Without this, every specification above would be
 satisfied by a predicate that is never true — Buzzard's vacuity trap. -/
 def Spec_NonVacuityWitness : Prop :=
   ∃ (c : BoundContract), c.isValid = true ∧ evalContractPayout c 50_000_000 40_000_000 > 0
+
+/-- **9. Facultative no over-recovery.** Across all three ALAE clauses, the US
+facultative desk never pays more than ground-up indemnity plus ground-up ALAE. -/
+def Spec_FacNoOverRecovery : Prop :=
+  ∀ (c : FacCertificate) (ind alae : Nat), c.isValid = true →
+    ourCumulativePayableUsd c ind alae ≤ ind + alae
+
+/-- **10. Facultative double-entry balance.** Every audit journal has debits
+equal to credits: indemnity plus ALAE equals the cedent payable. -/
+def Spec_FacJournalBalanced : Prop :=
+  ∀ (c : FacCertificate) (s : FacClaimSubmission),
+    (auditFacClaim c s).journal.totalDebitUsd = (auditFacClaim c s).journal.totalCreditUsd
 
 end ReinsuranceLeanCockpit

@@ -159,6 +159,97 @@ SLIPS = [
 ]
 
 
+
+
+# ---------------------------------------------------------------------------
+# US facultative cash calls
+# ---------------------------------------------------------------------------
+
+FAC_CASES = [
+    ("FAC-AL-01_Auto_Liability_Cash_Call.pdf", [
+        ("Cash_Call_ID", "CC-AL-01"),
+        ("Certificate_ID", "FAC-AL-01"),
+        ("Insured", "Midwest Fleet Logistics Inc."),
+        ("Cedent", "Continental Re"),
+        ("Line", "AutoLiability"),
+        ("Attachment_USD", "500000"),
+        ("Occurrence_Limit_USD", "500000"),
+        ("Signed_Share_Bps", "10000"),
+        ("ALAE_Clause", "proRataInAddition"),
+        ("Ground_Up_Indemnity_USD", "450000"),
+        ("Ground_Up_ALAE_USD", "180000"),
+        ("Prior_Paid_USD", "0"),
+        ("Cedent_Billed_Now_USD", "130000"),
+    ]),
+    ("FAC-DO-02_DO_Cash_Call.pdf", [
+        ("Cash_Call_ID", "CC-DO-02"),
+        ("Certificate_ID", "FAC-DO-02"),
+        ("Insured", "Apex BioTech Corp."),
+        ("Cedent", "Continental Re"),
+        ("Line", "DirectorsOfficers"),
+        ("Attachment_USD", "10000000"),
+        ("Occurrence_Limit_USD", "10000000"),
+        ("Signed_Share_Bps", "2000"),
+        ("ALAE_Clause", "includedInLimit"),
+        ("Ground_Up_Indemnity_USD", "16000000"),
+        ("Ground_Up_ALAE_USD", "6000000"),
+        ("Prior_Paid_USD", "0"),
+        ("Cedent_Billed_Now_USD", "2400000"),
+    ]),
+    ("FAC-WCA-03_Workers_Comp_Cash_Call.pdf", [
+        ("Cash_Call_ID", "CC-WCA-03"),
+        ("Certificate_ID", "FAC-WCA-03"),
+        ("Insured", "Pacific Manufacturing Co."),
+        ("Cedent", "Continental Re"),
+        ("Line", "WorkersComp"),
+        ("Attachment_USD", "500000"),
+        ("Occurrence_Limit_USD", "500000"),
+        ("Signed_Share_Bps", "10000"),
+        ("ALAE_Clause", "excluded"),
+        ("Ground_Up_Indemnity_USD", "850000"),
+        ("Ground_Up_ALAE_USD", "0"),
+        ("Prior_Paid_USD", "200000"),
+        ("Cedent_Billed_Now_USD", "350000"),
+    ]),
+    ("FAC-GL-04_General_Liability_Cash_Call.pdf", [
+        ("Cash_Call_ID", "CC-GL-04"),
+        ("Certificate_ID", "FAC-GL-04"),
+        ("Insured", "Tri-State Builders LLC"),
+        ("Cedent", "Continental Re"),
+        ("Line", "GeneralLiability"),
+        ("Attachment_USD", "500000"),
+        ("Occurrence_Limit_USD", "500000"),
+        ("Signed_Share_Bps", "10000"),
+        ("ALAE_Clause", "proRataInAddition"),
+        ("Ground_Up_Indemnity_USD", "750000"),
+        ("Ground_Up_ALAE_USD", "90000"),
+        ("Prior_Paid_USD", "0"),
+        ("Cedent_Billed_Now_USD", "280000"),
+    ]),
+]
+
+CASH_CALL_HEADER = [
+    "CEDANT CASH CALL - QUARTERLY STATEMENT",
+    "==================================================",
+]
+
+CASH_CALL_FOOTER = [
+    "--------------------------------------------------",
+    "Prepared by the cedent facultative accounting team.",
+    "Payment terms: 30 days from receipt of a corrected statement.",
+]
+
+
+def write_fac_slips() -> None:
+    base = Path(__file__).resolve().parent.parent / "examples" / "fac_slips"
+    base.mkdir(parents=True, exist_ok=True)
+    for name, fields in FAC_CASES:
+        lines = CASH_CALL_HEADER + [f"{k}: {v}" for k, v in fields] + CASH_CALL_FOOTER
+        write_simple_pdf(str(base / name), lines)
+        (base / name.replace(".pdf", ".txt")).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"wrote {base / name} ({len(lines)} lines)")
+
+
 def main() -> None:
     base = Path(__file__).resolve().parent.parent / "examples" / "slips"
     base.mkdir(parents=True, exist_ok=True)
@@ -167,6 +258,7 @@ def main() -> None:
         write_simple_pdf(str(base / name), lines)
         (base / name.replace(".pdf", ".txt")).write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"wrote {base / name} ({len(lines)} lines)")
+    write_fac_slips()
 
 
 if __name__ == "__main__":

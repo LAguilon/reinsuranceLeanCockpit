@@ -257,6 +257,69 @@ def main() -> int:
             ),
         )
 
+        # ---- US facultative desk -------------------------------------------
+        fac = request(base, "/api/fac-presets")
+        check("GET /api/fac-presets: 4 US facultative cases", len(fac["cases"]) == 4)
+        check(
+            "fac presets: billed / verified / overbilled totals",
+            fac["report"]["totalBilledUsd"] == 3_160_000
+            and fac["report"]["totalVerifiedUsd"] == 2_430_000
+            and fac["report"]["totalOverbilledUsd"] == 730_000,
+            str(fac["report"]["totalBilledUsd"]),
+        )
+        check("fac presets: 3 of 4 disputed", fac["report"]["disputeCount"] == 3)
+
+        for case in fac["cases"]:
+            with urllib.request.urlopen(base + case["pdfUrl"]) as res:
+                is_pdf = res.headers.get("Content-Type") == "application/pdf"
+                body = res.read()
+            check(f"fac PDF served: {case['certId']}", is_pdf and body.startswith(b"%PDF"))
+
+        fac_audit = request(base, "/api/fac-audit", {"bundle": fac["bundle"]})
+        expected = {
+            "FAC-AL-01": (0, 130_000, "DISPUTE_OVERBILLED"),
+            "FAC-DO-02": (2_000_000, 400_000, "DISPUTE_OVERBILLED"),
+            "FAC-WCA-03": (150_000, 200_000, "DISPUTE_OVERBILLED"),
+            "FAC-GL-04": (280_000, 0, "APPROVED_EXACT"),
+        }
+        for row in fac_audit["results"]:
+            verified_usd, over_usd, verdict = expected[row["certId"]]
+            check(
+                f"fac audit {row['certId']}: {verdict}",
+                row["verifiedIncrementalDueUsd"] == verified_usd
+                and row["overbilledUsd"] == over_usd
+                and row["verdict"] == verdict,
+                f"verified={row['verifiedIncrementalDueUsd']} over={row['overbilledUsd']} verdict={row['verdict']}",
+            )
+            check(
+                f"fac journal balanced: {row['certId']}",
+                row["journal"]["totalDebitUsd"] == row["journal"]["totalCreditUsd"],
+            )
+            check(f"fac memo non-empty: {row['certId']}", len(row["brokerMemo"]) > 100)
+        check("fac workflow trace has 4 steps", len(fac_audit["workflowTrace"]) == 4)
+        check(
+            "fac trace names the Lean verifier",
+            "Lean 4" in fac_audit["workflowTrace"][1]["name"],
+        )
+
+        custom = json.loads(json.dumps(fac["bundle"]))
+        custom["claims"][3]["cedentBilledNowUsd"] = 260_000
+        custom_audit = request(base, "/api/fac-audit", {"bundle": custom})
+        check(
+            "fac custom run flags underbilling",
+            custom_audit["results"][3]["verdict"] == "REVIEW_UNDERBILLED"
+            and custom_audit["results"][3]["underbilledUsd"] == 20_000,
+            custom_audit["results"][3]["verdict"],
+        )
+
+        guide = ROOT / "docs" / "USER_GUIDE.md"
+        check("docs/USER_GUIDE.md exists", guide.exists())
+        check(
+            "docs/USER_GUIDE.md is comprehensive (>150 lines)",
+            guide.exists() and guide.read_text().count("\n") > 150,
+            f"{guide.read_text().count(chr(10)) if guide.exists() else 0} lines",
+        )
+
         audit = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "paranoid_audit.py")],
             capture_output=True, text=True,

@@ -1,0 +1,18 @@
+CEDANT CASH CALL - QUARTERLY STATEMENT
+==================================================
+Cash_Call_ID: CC-WCA-03
+Certificate_ID: FAC-WCA-03
+Insured: Pacific Manufacturing Co.
+Cedent: Continental Re
+Line: WorkersComp
+Attachment_USD: 500000
+Occurrence_Limit_USD: 500000
+Signed_Share_Bps: 10000
+ALAE_Clause: excluded
+Ground_Up_Indemnity_USD: 850000
+Ground_Up_ALAE_USD: 0
+Prior_Paid_USD: 200000
+Cedent_Billed_Now_USD: 350000
+--------------------------------------------------
+Prepared by the cedent facultative accounting team.
+Payment terms: 30 days from receipt of a corrected statement.
