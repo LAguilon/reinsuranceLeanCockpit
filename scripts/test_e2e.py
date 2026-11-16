@@ -9,6 +9,8 @@ came out of the compiled Lean binary.
 Exit code 0 and the string ALL E2E CHECKS PASSED on success.
 """
 
+import csv
+import io
 import json
 import subprocess
 import sys
@@ -394,6 +396,32 @@ def main() -> int:
             execu["group"]["protectedRatioPct"] >= execu["group"]["ratioPct"],
         )
         check("executive: treaty stress still 94%", execu["treaty"]["solvencyRatioPct"] == 94)
+
+        # ---- Quarterly bordereau (v1.1.0) ----------------------------------
+        bord = request(base, "/api/bordereau-preset")
+        check("bordereau preset: 24 rows", bord["rows"] == 24)
+        check("bordereau preset: CSV has a header and 24 data rows",
+              len(bord["csv"].strip().splitlines()) == 25)
+
+        batch = request(base, "/api/bordereau-audit", {})
+        bk = batch["kpis"]
+        check(
+            "bordereau: 24 rows, 16 released, 6 queried, 2 held",
+            bk["totalRows"] == 24 and bk["stpAgreedCount"] == 16
+            and bk["queriedDisputeCount"] == 6 and bk["fourEyesHoldCount"] == 2,
+            str({k: bk[k] for k in ("totalRows", "stpAgreedCount", "queriedDisputeCount", "fourEyesHoldCount")}),
+        )
+        check("bordereau: leakage saved 1,520,000", bk["totalLeakageSavedUsd"] == 1_520_000)
+        check("bordereau: 3 premium-offset rows", bk["offsetCount"] == 3)
+        check("bordereau: SAP batch balances", bk["sapDebitTotalUsd"] == bk["sapCreditTotalUsd"])
+
+        sap_rows = list(csv.DictReader(io.StringIO(batch["sapCsv"])))
+        debit = sum(int(r["debit_usd"]) for r in sap_rows)
+        credit = sum(int(r["credit_usd"]) for r in sap_rows)
+        check("bordereau: downloadable SAP CSV balances", debit == credit and debit > 0, f"{debit}/{credit}")
+        check("bordereau: SAP CSV carries GL accounts", all(r["gl_account"] for r in sap_rows))
+        check("bordereau: every row has a gate verdict",
+              all(r["gate"] for r in batch["rows"]) and len(batch["rows"]) == 24)
 
         # ---- ACORD GRLC / Ruschlikon STP (v0.7) ----------------------------
         acord = request(base, "/api/acord-samples")

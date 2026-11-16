@@ -35,6 +35,7 @@ sys.path.insert(0, str(ROOT / "server"))
 import slip_parser  # noqa: E402
 import acord_adapter  # noqa: E402
 import fac_intake  # noqa: E402
+import bordereau_processor  # noqa: E402
 
 MAX_REQUEST_BYTES = 2_000_000
 
@@ -346,6 +347,28 @@ def executive_summary(payload: dict) -> dict:
     return {"group": view, "treaty": treaty["stress"], "leanExecMs": ms}
 
 
+def load_attestations_by_claim() -> dict:
+    """Active four-eyes sign-offs keyed by claim id. Populated from SQLite in
+    Step 4; empty until the ledger is wired."""
+    return {}
+
+
+def bordereau_preset() -> dict:
+    return {
+        "name": bordereau_processor.preset_path().name,
+        "csv": bordereau_processor.preset_csv(),
+        "rows": 24,
+    }
+
+
+def bordereau_audit(payload: dict) -> dict:
+    csv_text = payload.get("csv") or bordereau_processor.preset_csv()
+    if len(csv_text.encode("utf-8")) > MAX_REQUEST_BYTES:
+        raise PayloadTooLarge("bordereau CSV too large")
+    attestations = load_attestations_by_claim()
+    return bordereau_processor.run(csv_text, attestations)
+
+
 def read_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -431,6 +454,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(self.presets())
             if path == "/api/fac-presets":
                 return self.send_json(self.fac_presets())
+            if path == "/api/bordereau-preset":
+                return self.send_json(bordereau_preset())
             if path == "/api/fac-intake-samples":
                 return self.send_json({"samples": intake_samples()})
             if path == "/api/acord-samples":
@@ -457,6 +482,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({**report, "leanExecMs": ms})
             if path == "/api/parse-slip":
                 return self.send_json(self.parse_slip(body))
+            if path == "/api/bordereau-audit":
+                return self.send_json(bordereau_audit(body))
             if path == "/api/executive-summary":
                 return self.send_json(executive_summary(body))
             if path == "/api/fac-intake":

@@ -749,6 +749,105 @@ async function init() {
 
 document.addEventListener("DOMContentLoaded", init);
 
+/* ==================== Quarterly bordereau ==================== */
+
+state.bord = { result: null, filter: "ALL" };
+
+const BORD_FILTERS = [
+  ["ALL", "All"],
+  ["STP", "Auto-STP"],
+  ["QRY", "Queried Dispute"],
+  ["OFFSET", "Premium Offset"],
+  ["HOLD", "4-Eyes Hold"],
+];
+
+function bordRowsFiltered() {
+  const rows = (state.bord.result && state.bord.result.rows) || [];
+  switch (state.bord.filter) {
+    case "STP":
+      return rows.filter((r) => r.gate === "RELEASE_WIRE_AUTHORIZED" && r.acordResponseCode === "AGD");
+    case "QRY":
+      return rows.filter((r) => r.acordResponseCode === "QRY");
+    case "OFFSET":
+      return rows.filter((r) => r.acordResponseCode === "AGD_OFFSET");
+    case "HOLD":
+      return rows.filter((r) => r.gate === "HOLD_FOUR_EYES_REQUIRED");
+    default:
+      return rows;
+  }
+}
+
+function gatePill(gate) {
+  const cls = gate === "RELEASE_WIRE_AUTHORIZED" ? "release" : gate === "HOLD_FOUR_EYES_REQUIRED" ? "hold" : "blocked";
+  return `<span class="gate-pill ${cls}">${gate.replace("_WIRE_AUTHORIZED", "").replace("_FOUR_EYES_REQUIRED", "").replace("_BY_DISPUTE_OR_INVALID", "")}</span>`;
+}
+
+function renderBordTable() {
+  const rows = bordRowsFiltered();
+  $("#bordTable tbody").innerHTML = rows
+    .map(
+      (r) => `<tr>
+        <td class="mono">${r.claimId}</td><td>${r.cedent}</td><td>${r.line}</td>
+        <td class="num">${usd(r.billedUsd)}</td><td class="num">${usd(r.grossCashPayableUsd)}</td>
+        <td class="num ${r.overbilledUsd > 0 ? "danger" : ""}">${usd(r.overbilledUsd)}</td>
+        <td class="num">${usd(r.endingOslrUsd)}</td>
+        <td class="mono">${r.acordResponseCode}</td>
+        <td>${gatePill(r.gate)}</td></tr>`
+    )
+    .join("");
+}
+
+function renderBordereau(res) {
+  const k = res.kpis;
+  const cell = (label, value, cls = "") =>
+    `<div class="bord-kpi"><span>${label}</span><strong class="${cls}">${value}</strong></div>`;
+  $("#bordKpis").innerHTML = [
+    cell("Claims", k.totalRows),
+    cell("Leakage saved", usd(k.totalLeakageSavedUsd), "danger"),
+    cell("Authorized wire", usd(k.totalAuthorizedWireUsd), "ok"),
+    cell("4-eyes holds", k.fourEyesHoldCount, k.fourEyesHoldCount ? "warn" : ""),
+    cell("SAP balanced", k.sapDebitTotalUsd === k.sapCreditTotalUsd ? "YES" : "NO", "ok"),
+  ].join("");
+  $("#bordFilters").innerHTML = BORD_FILTERS.map(
+    ([key, label]) =>
+      `<button type="button" class="tab ${state.bord.filter === key ? "active" : ""}" data-bfilter="${key}">${label}</button>`
+  ).join("");
+  document.querySelectorAll("[data-bfilter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.bord.filter = btn.dataset.bfilter;
+      renderBordereau(state.bord.result);
+    });
+  });
+  $("#bordLatency").textContent = `Lean ${k.leanExecMs} ms · ${k.stpAgreedCount} released · ${k.queriedDisputeCount} queried`;
+  $("#downloadSap").disabled = false;
+  renderBordTable();
+}
+
+async function runBordereau(csvText) {
+  const btn = $("#runBordereau");
+  btn.disabled = true;
+  try {
+    const body = csvText ? JSON.stringify({ csv: csvText }) : "{}";
+    const res = await api("/api/bordereau-audit", { method: "POST", body });
+    state.bord.result = res;
+    renderBordereau(res);
+  } catch (err) {
+    $("#bordKpis").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function downloadSap() {
+  if (!state.bord.result) return;
+  const blob = new Blob([state.bord.result.sapCsv], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "SAP_IFRS17_Batch_Q3_2026.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 /* ==================== US Facultative Accounting Desk ==================== */
 
 state.fac = { loaded: false, presets: null, bundle: null, cases: [], selected: null };
@@ -1137,6 +1236,16 @@ function setupFacUI() {
   $("#facRun").addEventListener("click", runFacAudit);
   $("#intakeUse").addEventListener("click", loadIntakeIntoCalculator);
   $("#intakeVerify").addEventListener("click", bindIntakeText);
+  $("#runBordereau").addEventListener("click", () => runBordereau(null));
+  $("#downloadSap").addEventListener("click", downloadSap);
+  $("#uploadBord").addEventListener("click", () => $("#bordFile").click());
+  $("#bordFile").addEventListener("change", () => {
+    const file = $("#bordFile").files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => runBordereau(String(reader.result));
+    reader.readAsText(file);
+  });
   const drop = $("#facDrop");
   const fileInput = $("#facFile");
   if (drop && fileInput) {

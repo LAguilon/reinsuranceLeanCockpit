@@ -250,6 +250,29 @@
     <button type="button" class="btn btn-ghost" id="intakeUse" disabled>Load parsed contract into the calculator</button>
   </section>
 
+  <section class="panel" id="bordereauPanel">
+    <div class="panel-head">
+      <h2>Quarterly bordereau batch</h2>
+      <span class="muted">24 carrier claims · one Lean call · SAP / IFRS-17 posting export</span>
+    </div>
+    <div class="bord-actions">
+      <button type="button" class="btn btn-primary" id="runBordereau">Run Q3 Carrier Bordereau (24 Claims)</button>
+      <button type="button" class="btn btn-ghost" id="uploadBord">Upload CSV…</button>
+      <input type="file" id="bordFile" accept=".csv" hidden />
+      <button type="button" class="btn btn-ghost" id="downloadSap" disabled>Download SAP / IFRS-17 Ledger Batch CSV</button>
+      <span id="bordLatency" class="muted"></span>
+    </div>
+    <div class="bord-kpis" id="bordKpis"></div>
+    <div class="tabs" id="bordFilters"></div>
+    <table class="data-table" id="bordTable">
+      <thead>
+        <tr><th>Claim</th><th>Cedent</th><th>Line</th><th>Billed</th><th>Verified cash</th>
+            <th>Over</th><th>OSLR</th><th>Code</th><th>Gate</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Certificate calculator</h2>

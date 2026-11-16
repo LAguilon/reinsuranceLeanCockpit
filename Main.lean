@@ -251,11 +251,26 @@ def groupViewFile (path own scr fx threshold : String) (asJson : Bool) : IO Unit
   let v := groupView b (toNatOr fx 92) (toNatOr own 120000000) (toNatOr scr 58924000) (toNatOr threshold 300000)
   if asJson then IO.println (Json.compress (ToJson.toJson v)) else printGroupView v
 
-def printGate (status : String) (kinds : List String) : IO Unit := do
+def printGate (status : String) (kinds : List String) (attest : Option String)
+    (asJson : Bool) : IO Unit := do
   let stp := (ruschlikonOfString? status).getD .RUSCHLIKON_QUERIED
   let reqs := kinds.filterMap (fun k => subjectivityKind? k "CLI-CLAIM")
-  let gate := evaluateSettlementGate stp reqs []
-  IO.println s!"status {status} | requirements {reqs.length} | attestations 0 | gate {gate}"
+  let atts : List FourEyesAttestation :=
+    match attest with
+    | some s =>
+        match s.splitOn "|" with
+        | [ce, ta] =>
+            reqs.map (fun r =>
+              { subjectivity := r, claimsExaminer := ce, technicalAccountant := ta,
+                approved := true })
+        | _ => []
+    | none => []
+  let gate := evaluateSettlementGate stp reqs atts
+  if asJson then
+    IO.println (Json.compress (Json.mkObj
+      [ ("gate", ToJson.toJson gate), ("attestations", ToJson.toJson atts) ]))
+  else
+    IO.println s!"status {status} | requirements {reqs.length} | attestations {atts.length} | gate {gate}"
 
 def printTheorems (asJson : Bool) : IO Unit := do
   if asJson then
@@ -289,7 +304,14 @@ def main (args : List String) : IO Unit := do
   | ["informalize", path] => informalizeFile path
   | ["fac-audit", path] => facAuditFile path false
   | ["fac-audit", path, "--json"] => facAuditFile path true
-  | "gate" :: status :: kinds => printGate status kinds
+  | "gate" :: status :: rest =>
+      let asJson := rest.contains "--json"
+      let attest :=
+        match rest.find? (fun a => a.startsWith "--attest=") with
+        | some a => some (a.drop "--attest=".length).toString
+        | none => none
+      let kinds := rest.filter (fun a => !a.startsWith "--")
+      printGate status kinds attest asJson
   | ["group-view", path, own, scr, fx, threshold] => groupViewFile path own scr fx threshold false
   | ["group-view", path, own, scr, fx, threshold, "--json"] =>
       groupViewFile path own scr fx threshold true
