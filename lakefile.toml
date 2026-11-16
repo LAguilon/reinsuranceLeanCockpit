@@ -1,0 +1,13 @@
+name = "reinsuranceLeanCockpit"
+version = "0.1.0"
+description = "Formal verification and risk-intelligence engine for bound reinsurance portfolios: exact integer arithmetic, kernel-checked invariants, executable loophole and Solvency II cockpit."
+keywords = ["reinsurance", "solvency-ii", "formal-verification", "actuarial", "lean4"]
+license = "Apache-2.0"
+defaultTargets = ["ReinsuranceLeanCockpit", "cockpit"]
+
+[[lean_lib]]
+name = "ReinsuranceLeanCockpit"
+
+[[lean_exe]]
+name = "cockpit"
+root = "Main"
