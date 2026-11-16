@@ -678,7 +678,9 @@ function startTour() {
 }
 
 function endTour() {
-  $("#tourOverlay").hidden = true;
+  const overlay = $("#tourOverlay");
+  overlay.hidden = true;
+  tourIndex = 0;
   document.querySelectorAll(".tour-highlight").forEach((el) => el.classList.remove("tour-highlight"));
 }
 
@@ -689,6 +691,9 @@ function setupTour() {
     if (tourIndex >= TOUR_STEPS.length - 1) return endTour();
     tourIndex += 1;
     showTourStep(tourIndex);
+  });
+  $("#tourOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "tourOverlay") endTour();
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") endTour();

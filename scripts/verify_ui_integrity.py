@@ -102,6 +102,24 @@ def main() -> int:
         f"all {len(html_classes)} HTML classes have CSS rules", str(missing_classes)
     )
 
+    hidden_ids = set(re.findall(r'\$\("#([A-Za-z0-9_-]+)"\)\.hidden\s*=', js))
+    hidden_visible = []
+    for eid in sorted(hidden_ids):
+        tag = re.search(r'<[^>]*id="' + re.escape(eid) + r'"[^>]*>', html)
+        if not tag:
+            continue
+        cls = re.search(r'class="([^"]+)"', tag.group(0))
+        if not cls:
+            continue
+        for token in cls.group(1).split():
+            has_display = re.search(r"\." + re.escape(token) + r"\s*\{[^}]*display\s*:", css)
+            has_hidden_rule = re.search(r"\." + re.escape(token) + r"\[hidden\]", css)
+            if has_display and not has_hidden_rule:
+                hidden_visible.append(f"{eid}.{token}")
+    (ok if not hidden_visible else bad)(
+        "elements hidden from JS are not kept visible by CSS", str(hidden_visible)
+    )
+
     versions = {
         "web/index.html": html,
         "Main.lean": main_lean,
