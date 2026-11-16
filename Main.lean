@@ -2,9 +2,78 @@ import ReinsuranceLeanCockpit
 
 open ReinsuranceLeanCockpit
 
-def main : IO Unit := do
+/-!
+  The cockpit CLI.
+
+  Three modes:
+
+  * `cockpit`                                  v0.1 Alpine report + Continental Re audit
+  * `cockpit audit <path>`                     human report for any portfolio file
+  * `cockpit audit <path> --json`              the verified audit report as JSON
+-/
+
+/-! ## Formatting helpers -/
+
+def printExposureTable (title : String) (rows : List ExposureRow) : IO Unit := do
+  IO.println title
+  IO.println "  segment      inward      outward     net unhedged"
+  for r in rows do
+    IO.println s!"  {r.label}{String.ofList (List.replicate (13 - r.label.length) ' ')}{formatEurM r.inwardsEur}{String.ofList (List.replicate (13 - (formatEurM r.inwardsEur).length) ' ')}{formatEurM r.outwardsEur}{String.ofList (List.replicate (13 - (formatEurM r.outwardsEur).length) ' ')}{formatEurM r.netUnhedgedEur}"
+
+def printStress (s : PortfolioStress) : IO Unit := do
+  let status := if s.isSolvent then "SOLVENT (OK)" else "REGULATORY BREACH (<100%)"
+  IO.println s!"  Scenario:          {s.scenarioName}"
+  IO.println s!"  Net Cat Loss:      {formatEurM s.netCatLossEur}"
+  IO.println s!"  Reinstatement Fee: {formatEurM s.reinstCostEur}"
+  IO.println s!"  Counterparty SCR:  {formatEurM s.counterpartyScrEur}"
+  IO.println s!"  Other SCR:         {formatEurM s.otherScrEur}"
+  IO.println s!"  Total SCR:         {formatEurM s.totalScrEur} (Own Funds: {formatEurM s.ownFundsEur})"
+  IO.println s!"  Solvency II Ratio: {s.solvencyRatioPct}% -> {status}"
+
+def printFindings (fs : List LoopholeFinding) : IO Unit := do
+  if fs.isEmpty then
+    IO.println "  No structural findings."
+  else
+    for f in fs do
+      IO.println s!"  [{f.severity}] {f.kind}  ({formatEurM f.amountEur})"
+      IO.println s!"      {f.message}"
+
+/-! ## Audit report -/
+
+def printAudit (r : PortfolioAuditReport) : IO Unit := do
   IO.println "=================================================================="
-  IO.println "   REINSURANCE LEAN COCKPIT v0.1 - FORMAL PORTFOLIO AUDITOR"
+  IO.println s!"  PORTFOLIO AUDIT: {r.portfolio}"
+  IO.println s!"  {r.contractCount} bound contracts | {r.totalFound} findings ({r.criticalCount} CRITICAL, {r.warningCount} WARNING, {r.infoCount} INFO)"
+  IO.println "=================================================================="
+  IO.println ""
+  printExposureTable "EXPOSURE BY CURRENCY (EUR, single-event limits)" r.exposureByCurrency
+  IO.println ""
+  printExposureTable "EXPOSURE BY PERIL (EUR, single-event limits)" r.exposureByPeril
+  IO.println ""
+  IO.println "------------------------------------------------------------------"
+  IO.println "STRUCTURAL LOOPHOLES"
+  IO.println "------------------------------------------------------------------"
+  printFindings r.findings
+  IO.println ""
+  IO.println "------------------------------------------------------------------"
+  IO.println "SOLVENCY II STRESS"
+  IO.println "------------------------------------------------------------------"
+  printStress r.stress
+  IO.println "=================================================================="
+  IO.println ""
+
+def auditFile (path : String) (asJson : Bool) : IO Unit := do
+  let p ← loadPortfolio path
+  if asJson then
+    IO.println (auditReportJson p)
+  else
+    printAudit (auditPortfolio p)
+
+/-! ## v0.1 Alpine Re report (unchanged behaviour) -/
+
+def printAlpineReport : IO Unit := do
+  IO.println "=================================================================="
+  IO.println "   REINSURANCE LEAN COCKPIT v0.2 - FORMAL PORTFOLIO AUDITOR"
   IO.println "=================================================================="
   IO.println ""
   IO.println "[VERIFIED] Compile-time Lean 4 Theorems Checked:"
@@ -46,3 +115,43 @@ def main : IO Unit := do
   IO.println ""
   IO.println r4.pretty
   IO.println "=================================================================="
+  IO.println ""
+
+/-! ## Default mode -/
+
+def defaultReport : IO Unit := do
+  printAlpineReport
+  IO.println "##################################################################"
+  IO.println "#  PHASE 2: DATA-DRIVEN BOUND PORTFOLIO AUDIT                    #"
+  IO.println "##################################################################"
+  IO.println ""
+  let brokenPath := "examples/continental_re_portfolio.json"
+  let fixedPath := "examples/continental_re_fixed.json"
+
+  let broken ← loadPortfolio brokenPath
+  let fixed ← loadPortfolio fixedPath
+
+  printAudit (auditPortfolio broken)
+  printAudit (auditPortfolio fixed)
+
+  let rb := auditPortfolio broken
+  let rf := auditPortfolio fixed
+  IO.println "------------------------------------------------------------------"
+  IO.println "BEFORE / AFTER"
+  IO.println "------------------------------------------------------------------"
+  IO.println s!"  As bound:      {rb.totalFound} findings, ratio {rb.stress.solvencyRatioPct}%"
+  IO.println s!"  Restructured:  {rf.totalFound} findings, ratio {rf.stress.solvencyRatioPct}%"
+  IO.println "=================================================================="
+
+def usage : IO Unit := do
+  IO.println "usage:"
+  IO.println "  cockpit                              full report (v0.1 case + Continental Re audit)"
+  IO.println "  cockpit audit <portfolio.json>       human-readable audit of any portfolio"
+  IO.println "  cockpit audit <portfolio.json> --json  machine-readable verified audit report"
+
+def main (args : List String) : IO Unit := do
+  match args with
+  | [] => defaultReport
+  | ["audit", path] => auditFile path false
+  | ["audit", path, "--json"] => auditFile path true
+  | _ => usage

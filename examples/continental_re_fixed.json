@@ -1,0 +1,146 @@
+{
+  "name": "Continental Re (Restructured)",
+  "ownFundsEur": 120000000,
+  "otherScrEur": 10000000,
+  "maxSingleEventAppetiteEur": 40000000,
+  "fxRatesToEurCents": [
+    { "currency": "EUR", "cents": 100 },
+    { "currency": "USD", "cents": 92 },
+    { "currency": "GBP", "cents": 118 },
+    { "currency": "JPY", "cents": 60 }
+  ],
+  "contracts": [
+    {
+      "id": "CNT-WS-QS",
+      "name": "US Windstorm Quota Share",
+      "counterparty": "Continental Re",
+      "rating": "AA",
+      "direction": "inward",
+      "currency": "USD",
+      "perils": ["Windstorm"],
+      "inuringPriority": 0,
+      "kind": { "type": "quotaShare", "shareBps": 3000, "eventCap": 20000000, "commissionBps": 2500 }
+    },
+    {
+      "id": "CNT-WS-SUR",
+      "name": "US Windstorm Surplus Share (5M line x 4)",
+      "counterparty": "Continental Re",
+      "rating": "A",
+      "direction": "inward",
+      "currency": "USD",
+      "perils": ["Windstorm"],
+      "inuringPriority": 0,
+      "kind": { "type": "surplusShare", "retentionLine": 5000000, "numLines": 4, "eventCap": 60000000 }
+    },
+    {
+      "id": "CNT-WS-XOL",
+      "name": "US Windstorm Cat XoL 40M xs 10M",
+      "counterparty": "Continental Re",
+      "rating": "A",
+      "direction": "inward",
+      "currency": "USD",
+      "perils": ["Windstorm"],
+      "inuringPriority": 1,
+      "kind": { "type": "xol", "attachment": 10000000, "occLimit": 40000000, "aggLimit": 80000000, "reinstRateBps": 10000, "basePremium": 4000000 }
+    },
+    {
+      "id": "CNT-WS-L1",
+      "name": "Outward US Windstorm Layer 1: 15M xs 5M",
+      "counterparty": "Northwind Re",
+      "rating": "AA",
+      "direction": "outward",
+      "currency": "USD",
+      "perils": ["Windstorm"],
+      "inuringPriority": 10,
+      "kind": { "type": "xol", "attachment": 5000000, "occLimit": 15000000, "aggLimit": 30000000, "reinstRateBps": 10000, "basePremium": 1500000 }
+    },
+    {
+      "id": "CNT-WS-L2",
+      "name": "Outward US Windstorm Layer 2: 25M xs 20M (gap closed)",
+      "counterparty": "Northwind Re",
+      "rating": "A",
+      "direction": "outward",
+      "currency": "USD",
+      "perils": ["Windstorm"],
+      "inuringPriority": 10,
+      "kind": { "type": "xol", "attachment": 20000000, "occLimit": 25000000, "aggLimit": 25000000, "reinstRateBps": 10000, "basePremium": 1200000 }
+    },
+    {
+      "id": "CNT-WS-L3",
+      "name": "Outward US Windstorm Layer 3: 40M xs 45M",
+      "counterparty": "Northwind Re",
+      "rating": "A",
+      "direction": "outward",
+      "currency": "USD",
+      "perils": ["Windstorm"],
+      "inuringPriority": 10,
+      "kind": { "type": "xol", "attachment": 45000000, "occLimit": 40000000, "aggLimit": 40000000, "reinstRateBps": 10000, "basePremium": 1800000 }
+    },
+    {
+      "id": "CNT-EQ-IN",
+      "name": "Japan Earthquake XoL 200M xs 100M (JPY)",
+      "counterparty": "Continental Re",
+      "rating": "A",
+      "direction": "inward",
+      "currency": "JPY",
+      "perils": ["Earthquake"],
+      "inuringPriority": 0,
+      "kind": { "type": "xol", "attachment": 100000000, "occLimit": 200000000, "aggLimit": 200000000, "reinstRateBps": 10000, "basePremium": 60000000 }
+    },
+    {
+      "id": "CNT-EQ-OUT",
+      "name": "Outward Japan Earthquake Layer (JPY matched)",
+      "counterparty": "Sakura Re",
+      "rating": "AA",
+      "direction": "outward",
+      "currency": "JPY",
+      "perils": ["Earthquake"],
+      "inuringPriority": 10,
+      "kind": { "type": "xol", "attachment": 100000000, "occLimit": 200000000, "aggLimit": 200000000, "reinstRateBps": 10000, "basePremium": 60000000 }
+    },
+    {
+      "id": "CNT-CY-QS",
+      "name": "Cyber Quota Share 20%",
+      "counterparty": "Continental Re",
+      "rating": "BBB",
+      "direction": "inward",
+      "currency": "EUR",
+      "perils": ["Cyber"],
+      "inuringPriority": 0,
+      "kind": { "type": "quotaShare", "shareBps": 2000, "eventCap": 15000000, "commissionBps": 2000 }
+    },
+    {
+      "id": "CNT-FL-SL",
+      "name": "European Flood and Wind Aggregate Stop Loss 30M xs 20M",
+      "counterparty": "Atlas Re",
+      "rating": "A",
+      "direction": "outward",
+      "currency": "EUR",
+      "perils": ["Flood", "Windstorm"],
+      "inuringPriority": 20,
+      "kind": { "type": "aggregateStopLoss", "aggAttachment": 20000000, "aggLimit": 30000000 }
+    },
+    {
+      "id": "CNT-FL-IN",
+      "name": "European Flood XoL 8M xs 2M",
+      "counterparty": "Continental Re",
+      "rating": "A",
+      "direction": "inward",
+      "currency": "EUR",
+      "perils": ["Flood"],
+      "inuringPriority": 0,
+      "kind": { "type": "xol", "attachment": 2000000, "occLimit": 8000000, "aggLimit": 16000000, "reinstRateBps": 10000, "basePremium": 600000 }
+    },
+    {
+      "id": "CNT-FL-OUT",
+      "name": "Outward European Flood XoL 8M xs 2M (reinstating)",
+      "counterparty": "Meridian Re",
+      "rating": "A",
+      "direction": "outward",
+      "currency": "EUR",
+      "perils": ["Flood"],
+      "inuringPriority": 10,
+      "kind": { "type": "xol", "attachment": 2000000, "occLimit": 8000000, "aggLimit": 16000000, "reinstRateBps": 10000, "basePremium": 600000 }
+    }
+  ]
+}
