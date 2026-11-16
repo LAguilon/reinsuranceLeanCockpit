@@ -1,4 +1,4 @@
-# Deploying the ReinsuranceLean Cockpit
+# Deploying the ReinsuranceLean Cockpit — v1.1.0
 
 The cockpit is a single Python process plus one compiled Lean binary. There is
 no database, no Node build step, and no third-party service. That makes it cheap
@@ -122,6 +122,8 @@ builds reuse the Docker layer cache.
 | Memory | the Lean binary is ~230 MB on disk, a few MB resident per request |
 | Concurrency | `ThreadingHTTPServer`; each request spawns one short-lived Lean process |
 | Secrets | none required; `OPENAI_API_KEY` is optional and only annotates intake |
+| Audit ledger | SQLite at `data/cockpit_audit.db`; mount a volume to persist the hash chain across restarts |
+| CI | `.github/workflows/ci.yml` builds and runs all four gates on every push |
 
 ### Verifying a deployment
 

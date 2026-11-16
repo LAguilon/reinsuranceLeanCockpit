@@ -73,6 +73,49 @@ def main() -> int:
     else:
         ok(f"all {len(js_routes)} JS API routes are implemented")
 
+    css = (ROOT / "web" / "styles.css").read_text()
+
+    buttons = re.findall(r"<button[^>]*>", html, re.IGNORECASE)
+    classless = [b for b in buttons if not re.search(r'class="', b)]
+    (ok if not classless else bad)(
+        f"every <button> carries a class ({len(buttons)} buttons)", str(classless[:3])
+    )
+
+    unstyled = []
+    for button in buttons:
+        match = re.search(r'class="([^"]+)"', button)
+        if not match:
+            continue
+        for token in match.group(1).split():
+            if not re.search(r"\." + re.escape(token) + r"\b", css):
+                unstyled.append(token)
+    unstyled = sorted(set(unstyled))
+    (ok if not unstyled else bad)("every button class is styled in styles.css", str(unstyled))
+
+    html_classes = set()
+    for match in re.findall(r'class="([^"]+)"', html):
+        html_classes.update(match.split())
+    missing_classes = sorted(
+        c for c in html_classes if not re.search(r"\." + re.escape(c) + r"\b", css)
+    )
+    (ok if not missing_classes else bad)(
+        f"all {len(html_classes)} HTML classes have CSS rules", str(missing_classes)
+    )
+
+    versions = {
+        "web/index.html": html,
+        "Main.lean": main_lean,
+        "server/app.py": server,
+        "README.md": (ROOT / "README.md").read_text(),
+    }
+    version_bad = [name for name, text in versions.items() if "v1.1.0" not in text and "1.1.0" not in text]
+    (ok if not version_bad else bad)("v1.1.0 present in HTML, CLI, server and README", str(version_bad))
+    stale_anywhere = [
+        name for name, text in versions.items()
+        if any(v in text for v in ("v0.4", "v0.5"))
+    ]
+    (ok if not stale_anywhere else bad)("no stale v0.4/v0.5 in versioned files", str(stale_anywhere))
+
     assets = set(re.findall(r'(?:href|src)="([A-Za-z0-9_./-]+\.(?:css|js))"', html))
     missing_assets = sorted(a for a in assets if not (ROOT / "web" / a).exists())
     (ok if not missing_assets else bad)(

@@ -397,6 +397,23 @@ def main() -> int:
         )
         check("executive: treaty stress still 94%", execu["treaty"]["solvencyRatioPct"] == 94)
 
+        numeric_keys = (
+            "totalCedentBilledUsd", "totalGrossCashVerifiedUsd", "totalLeakagePreventedUsd",
+            "totalPremiumOffsetRecoveredUsd", "totalNetWireUsd", "totalEndingOslrBookedUsd",
+            "totalGrossCashVerifiedEur", "totalLeakagePreventedEur", "stpRatePct",
+        )
+        bad_kpis = [
+            k for k in numeric_keys
+            if not isinstance(execu["group"]["rollup"].get(k), int)
+            or execu["group"]["rollup"][k] < 0
+        ]
+        check("executive: every KPI field is present and numeric", not bad_kpis, str(bad_kpis))
+        check(
+            "executive: ratio fields are numeric",
+            isinstance(execu["group"].get("ratioPct"), int)
+            and isinstance(execu["group"].get("protectedRatioPct"), int),
+        )
+
         # ---- Quarterly bordereau (v1.1.0) ----------------------------------
         def post_raw(path, payload):
             req = urllib.request.Request(

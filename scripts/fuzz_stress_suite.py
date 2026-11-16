@@ -22,6 +22,7 @@ Optional: builds the Docker image when a daemon is available.
 """
 
 import json
+import os
 import random
 import shutil
 import subprocess
@@ -230,6 +231,9 @@ def security_suite():
 
 
 def docker_probe():
+    if os.environ.get("SKIP_DOCKER") == "1":
+        print("\n  SKIP  SKIP_DOCKER=1")
+        return
     docker = shutil.which("docker")
     if not docker:
         print("\n  SKIP  docker not installed")

@@ -1,5 +1,7 @@
 # reinsuranceLeanCockpit — v1.1.0
 
+[![CI](https://github.com/LAguilon/reinsuranceLeanCockpit/actions/workflows/ci.yml/badge.svg)](https://github.com/LAguilon/reinsuranceLeanCockpit/actions/workflows/ci.yml)
+
 Agentic AI plus Lean 4 formal verification for US facultative reinsurance
 accounting. Two audiences, one engine: technical accountants who need the number
 to be right, and group executives who need to see the capital it protects.

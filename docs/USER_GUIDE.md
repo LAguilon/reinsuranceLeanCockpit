@@ -414,3 +414,79 @@ intake, and the clash panel. Press `Esc` to leave at any point.
 `docs/DEPLOYMENT.md` covers Render (one click from `render.yaml`), Fly.io,
 Railway and a plain VPS. The Docker build runs the paranoid audit, so an image
 cannot be produced unless every theorem still checks out.
+
+---
+
+# v1.1.0 — subjectivity, bordereaux, and a trail you can prove
+
+## 1. Not everything is arithmetic
+
+A hammer clause, a declaratory-judgment fee, a punitive-damages exclusion, a
+policy-period dispute: these cannot be settled by a formula. The cockpit models
+them as **typed subjectivity** and refuses to release cash until two different
+people — a claims examiner and a technical accountant — have signed the same
+requirement. That is the four-eyes principle (`Vier-Augen-Prinzip`).
+
+The kernel proves the control rather than trusting the form:
+
+* `selfApproval_rejected` — the same name in both boxes is never valid;
+* `unattestedSubjectivity_holds_wire` — one unsigned requirement holds the wire;
+* `disputedClaim_never_authorized` — a queried or rejected claim is never paid;
+* `noSubjectivity_cleanStp_authorized` — no friction where none is needed.
+
+In the UI, the two held claims in the Q3 bordereau show their requirement, two
+reviewer fields and a *Sign off* button. Typing the same name twice is rejected
+with the theorem cited. Two distinct names release the wire, and the held count
+drops immediately.
+
+## 2. The quarterly bordereau
+
+Carriers send loss bordereaux, not single claims. Click **Run Q3 Carrier
+Bordereau (24 Claims)** and the whole book is audited in one Lean call:
+
+* 13 clean claims auto-settle;
+* 3 settle with unpaid premium offset;
+* 6 are queried as disputes, preventing **$1,520,000** of leakage;
+* 2 are mathematically clean but held for four-eyes sign-off.
+
+Filter by status, then download the **SAP FS-RI / IFRS 17 posting batch**: one
+balanced CSV with debit and credit lines for every authorized wire and every
+OSLR movement. Upload your own bordereau with the same columns to run your book.
+
+## 3. A tamper-evident audit trail
+
+Every sign-off and audit event is appended to a SHA-256 hash chain in SQLite.
+Each entry hashes the previous entry's hash, the timestamp, the event, the actor,
+the entity and the summary. `GET /api/audit-ledger` re-computes every link from
+the genesis hash and reports `chainIntact`. Edit a historical row and the chain
+breaks from that point — which is the point.
+
+The event log in the UI shows the chain live: timestamps, event types, entities
+and the first characters of each hash.
+
+## 4. Authentic ACORD
+
+Inbound messages can use the real `<Jv-Ins-Reinsurance Version="2016-1">`
+structure with `ClaimMovement` → `ReferredContract` / `Claim` → `ClaimEntry` →
+`ClaimMovementAmtItem Type="PaidLoss|PaidExpense|OSLRLoss|OSLRExpense|CashCall"`.
+Flat tags still work, so older feeds keep running. Outbound is a
+`ClaimMovementResponse` carrying `<AcknowledgementStatus>` and the verified
+amounts.
+
+## 5. Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request: elan and the
+pinned toolchain, `lake build`, the paranoid audit, the UI integrity check, the
+end-to-end suite and the fuzz suite. The badge at the top of the README is the
+result.
+
+## 6. The demo, updated
+
+1. Open the desk: six KPI cards, all populated on boot.
+2. Click the D&O case: inside-limits cap, $400,000 dispute.
+3. Run the bordereau: 24 claims, $1.52M saved, SAP export enabled.
+4. Sign off a held claim with two different names; watch the hold clear.
+5. Type the same name twice; watch the kernel refuse, citing
+   `selfApproval_rejected`.
+6. Open the event log: chain intact, hashes visible.
+7. Switch to the Group tab for the EUR roll-up and the clash alert.
