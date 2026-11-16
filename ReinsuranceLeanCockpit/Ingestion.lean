@@ -1,6 +1,7 @@
 import ReinsuranceLeanCockpit.Simulation
 import ReinsuranceLeanCockpit.Facultative
 import ReinsuranceLeanCockpit.GroupBridge
+import ReinsuranceLeanCockpit.Subjectivity
 import Lean.Data.Json
 
 namespace ReinsuranceLeanCockpit
@@ -575,7 +576,23 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "groupView_protected_eq" "GroupBridge"
       "Protected own funds are initial funds plus leakage prevented."
   , theoremRecord "groupView_protectedRatio_ge" "GroupBridge"
-      "Preventing leakage can never lower the group solvency ratio." ]
+      "Preventing leakage can never lower the group solvency ratio."
+  , theoremRecord "selfApproval_rejected" "Subjectivity"
+      "The same person cannot fill both four-eyes roles."
+  , theoremRecord "unattestedSubjectivity_holds_wire" "Subjectivity"
+      "An unattested subjectivity requirement always holds the wire."
+  , theoremRecord "disputedClaim_never_authorized" "Subjectivity"
+      "A queried or rejected claim is never authorized."
+  , theoremRecord "noSubjectivity_cleanStp_authorized" "Subjectivity"
+      "A clean claim with no subjectivity is released."
+  , theoremRecord "verified_SelfApprovalRejected" "TrustProofs"
+      "Discharges Spec_SelfApprovalRejected."
+  , theoremRecord "verified_UnattestedHoldsWire" "TrustProofs"
+      "Discharges Spec_UnattestedHoldsWire."
+  , theoremRecord "verified_DisputedNeverAuthorized" "TrustProofs"
+      "Discharges Spec_DisputedNeverAuthorized."
+  , theoremRecord "verified_NoSubjectivityAuthorized" "TrustProofs"
+      "Discharges Spec_NoSubjectivityAuthorized." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)
@@ -857,5 +874,62 @@ instance : ToJson GroupView where
 def groupViewJson (path : System.FilePath) (fx own scr threshold : Nat) : IO String := do
   let b ← loadFacBundle path
   pure (Json.compress (ToJson.toJson (groupView b fx own scr threshold)))
+
+/-! ## Subjectivity and settlement-gate codecs (v1.1.0) -/
+
+instance : ToJson FacSubjectivity where
+  toJson := fun (s : FacSubjectivity) =>
+    match s with
+    | .declaratoryJudgmentFee c =>
+        Json.mkObj [("type", Json.str "declaratoryJudgmentFee"), ("claimId", Json.str c)]
+    | .hammerConsentToSettle c =>
+        Json.mkObj [("type", Json.str "hammerConsentToSettle"), ("claimId", Json.str c)]
+    | .punitiveDamagesReview c =>
+        Json.mkObj [("type", Json.str "punitiveDamagesReview"), ("claimId", Json.str c)]
+    | .policyPeriodCertification c =>
+        Json.mkObj [("type", Json.str "policyPeriodCertification"), ("claimId", Json.str c)]
+
+instance : ToJson FourEyesAttestation where
+  toJson := fun (a : FourEyesAttestation) =>
+    Json.mkObj
+      [ ("subjectivity", ToJson.toJson a.subjectivity)
+      , ("claimsExaminer", Json.str a.claimsExaminer)
+      , ("technicalAccountant", Json.str a.technicalAccountant)
+      , ("approved", ToJson.toJson a.approved)
+      , ("validSegregation", ToJson.toJson a.isValidSegregation) ]
+
+instance : ToJson SettlementGate where
+  toJson := fun (g : SettlementGate) =>
+    match g with
+    | .RELEASE_WIRE_AUTHORIZED => Json.str "RELEASE_WIRE_AUTHORIZED"
+    | .HOLD_FOUR_EYES_REQUIRED => Json.str "HOLD_FOUR_EYES_REQUIRED"
+    | .BLOCKED_BY_DISPUTE_OR_INVALID => Json.str "BLOCKED_BY_DISPUTE_OR_INVALID"
+
+/-- Parse a subjectivity kind for the CLI and the bordereau CSV. -/
+def subjectivityKind? (kind claimId : String) : Option FacSubjectivity :=
+  match kind with
+  | "declaratoryJudgmentFee" => some (FacSubjectivity.declaratoryJudgmentFee claimId)
+  | "hammerConsentToSettle" => some (FacSubjectivity.hammerConsentToSettle claimId)
+  | "punitiveDamagesReview" => some (FacSubjectivity.punitiveDamagesReview claimId)
+  | "policyPeriodCertification" => some (FacSubjectivity.policyPeriodCertification claimId)
+  | _ => none
+
+/-- Parse a Ruschlikon status token used by the CLI and the API. -/
+def ruschlikonOfString? : String → Option RuschlikonStatus
+  | "AGD" | "STP_AUTO_AGREED" => some .STP_AUTO_AGREED
+  | "AGD_OFFSET" | "STP_OFFSET_APPLIED" => some .STP_OFFSET_APPLIED
+  | "QRY" | "RUSCHLIKON_QUERIED" => some .RUSCHLIKON_QUERIED
+  | "REJ" | "GATEKEEPER_REJECTED" => some .GATEKEEPER_REJECTED
+  | _ => none
+
+def gateJson (status : String) (kinds : List String) : String :=
+  let stp := (ruschlikonOfString? status).getD .RUSCHLIKON_QUERIED
+  let reqs := kinds.filterMap (fun k => subjectivityKind? k "CLI-CLAIM")
+  let gate := evaluateSettlementGate stp reqs []
+  Json.compress (Json.mkObj
+    [ ("status", Json.str status)
+    , ("requirements", ToJson.toJson reqs)
+    , ("attestations", ToJson.toJson ([] : List FourEyesAttestation))
+    , ("gate", ToJson.toJson gate) ])
 
 end ReinsuranceLeanCockpit

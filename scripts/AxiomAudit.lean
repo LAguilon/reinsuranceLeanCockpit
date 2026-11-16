@@ -131,3 +131,14 @@ open ReinsuranceLeanCockpit
 #print axioms rollup_wire_plus_offset_le_verified
 #print axioms groupView_protected_eq
 #print axioms groupView_protectedRatio_ge
+
+/-! ### v1.1.0 — four-eyes subjectivity -/
+
+#print axioms selfApproval_rejected
+#print axioms unattestedSubjectivity_holds_wire
+#print axioms disputedClaim_never_authorized
+#print axioms noSubjectivity_cleanStp_authorized
+#print axioms verified_SelfApprovalRejected
+#print axioms verified_UnattestedHoldsWire
+#print axioms verified_DisputedNeverAuthorized
+#print axioms verified_NoSubjectivityAuthorized

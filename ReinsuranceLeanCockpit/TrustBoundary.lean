@@ -5,6 +5,7 @@ import ReinsuranceLeanCockpit.Simulation
 import ReinsuranceLeanCockpit.AlpineShowcase
 import ReinsuranceLeanCockpit.Facultative
 import ReinsuranceLeanCockpit.Acord
+import ReinsuranceLeanCockpit.Subjectivity
 
 /-!
 # Trust boundary: the eight statements a human should audit
@@ -110,5 +111,28 @@ def Spec_StpAutoAgreedSafe : Prop :=
   ∀ (c : FacCertificate) (r : FacAuditResult),
     classifyRuschlikonStp c r = .STP_AUTO_AGREED →
       c.isValid = true ∧ r.overbilledUsd = 0 ∧ r.underbilledUsd = 0
+
+/-- **14. Four-eyes segregation.** The same person cannot fill both roles. -/
+def Spec_SelfApprovalRejected : Prop :=
+  ∀ (subj : FacSubjectivity) (person : String) (app : Bool),
+    ({ subjectivity := subj, claimsExaminer := person, technicalAccountant := person,
+       approved := app } : FourEyesAttestation).isValidSegregation = false
+
+/-- **15. Unattested subjectivity holds the wire.** -/
+def Spec_UnattestedHoldsWire : Prop :=
+  ∀ (stp : RuschlikonStatus) (s : FacSubjectivity) (rest : List FacSubjectivity),
+    (stp = .STP_AUTO_AGREED ∨ stp = .STP_OFFSET_APPLIED) →
+      evaluateSettlementGate stp (s :: rest) [] = .HOLD_FOUR_EYES_REQUIRED
+
+/-- **16. Disputed claims are never authorized.** -/
+def Spec_DisputedNeverAuthorized : Prop :=
+  ∀ (reqs : List FacSubjectivity) (atts : List FourEyesAttestation),
+    evaluateSettlementGate .RUSCHLIKON_QUERIED reqs atts = .BLOCKED_BY_DISPUTE_OR_INVALID ∧
+      evaluateSettlementGate .GATEKEEPER_REJECTED reqs atts = .BLOCKED_BY_DISPUTE_OR_INVALID
+
+/-- **17. A clean claim with no subjectivity is released.** -/
+def Spec_NoSubjectivityAuthorized : Prop :=
+  ∀ (atts : List FourEyesAttestation),
+    evaluateSettlementGate .STP_AUTO_AGREED [] atts = .RELEASE_WIRE_AUTHORIZED
 
 end ReinsuranceLeanCockpit

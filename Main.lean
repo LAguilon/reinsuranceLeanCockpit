@@ -251,6 +251,12 @@ def groupViewFile (path own scr fx threshold : String) (asJson : Bool) : IO Unit
   let v := groupView b (toNatOr fx 92) (toNatOr own 120000000) (toNatOr scr 58924000) (toNatOr threshold 300000)
   if asJson then IO.println (Json.compress (ToJson.toJson v)) else printGroupView v
 
+def printGate (status : String) (kinds : List String) : IO Unit := do
+  let stp := (ruschlikonOfString? status).getD .RUSCHLIKON_QUERIED
+  let reqs := kinds.filterMap (fun k => subjectivityKind? k "CLI-CLAIM")
+  let gate := evaluateSettlementGate stp reqs []
+  IO.println s!"status {status} | requirements {reqs.length} | attestations 0 | gate {gate}"
+
 def printTheorems (asJson : Bool) : IO Unit := do
   if asJson then
     IO.println verifiedTheoremsJson
@@ -270,6 +276,7 @@ def usage : IO Unit := do
   IO.println "  cockpit informalize <contract.json>  Lean-to-English back-translation"
   IO.println "  cockpit fac-audit <bundle.json> [--json]  US facultative cash-call audit"
   IO.println "  cockpit group-view <bundle> <ownFunds> <scr> <fxCents> <threshold> [--json]"
+  IO.println "  cockpit gate <AGD|AGD_OFFSET|QRY|REJ> [subjectivity ...]"
 
 def main (args : List String) : IO Unit := do
   match args with
@@ -282,6 +289,7 @@ def main (args : List String) : IO Unit := do
   | ["informalize", path] => informalizeFile path
   | ["fac-audit", path] => facAuditFile path false
   | ["fac-audit", path, "--json"] => facAuditFile path true
+  | "gate" :: status :: kinds => printGate status kinds
   | ["group-view", path, own, scr, fx, threshold] => groupViewFile path own scr fx threshold false
   | ["group-view", path, own, scr, fx, threshold, "--json"] =>
       groupViewFile path own scr fx threshold true

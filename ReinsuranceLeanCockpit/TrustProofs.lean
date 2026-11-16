@@ -72,4 +72,16 @@ theorem verified_FacFullVoucherBalanced : Spec_FacFullVoucherBalanced :=
 theorem verified_StpAutoAgreedSafe : Spec_StpAutoAgreedSafe :=
   fun c r h => stpAutoAgreed_implies_valid_and_zero_overbill c r h
 
+theorem verified_SelfApprovalRejected : Spec_SelfApprovalRejected :=
+  fun subj person app => selfApproval_rejected subj person app
+
+theorem verified_UnattestedHoldsWire : Spec_UnattestedHoldsWire :=
+  fun stp s rest h => unattestedSubjectivity_holds_wire stp s rest h
+
+theorem verified_DisputedNeverAuthorized : Spec_DisputedNeverAuthorized :=
+  fun reqs atts => disputedClaim_never_authorized reqs atts
+
+theorem verified_NoSubjectivityAuthorized : Spec_NoSubjectivityAuthorized :=
+  fun atts => noSubjectivity_cleanStp_authorized atts
+
 end ReinsuranceLeanCockpit
