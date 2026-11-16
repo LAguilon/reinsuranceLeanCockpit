@@ -195,6 +195,28 @@
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Universal intake</h2>
+      <span class="muted">Drop a PDF, an ACORD XML/JSON message, or paste a broker email</span>
+    </div>
+    <div class="intake-grid">
+      <div id="facDrop" class="dropzone">
+        <p><strong>Drop a PDF / ACORD / email</strong></p>
+        <p class="muted">or click to choose a file</p>
+        <input type="file" id="facFile" accept=".pdf,.xml,.json,.txt,.eml" hidden />
+      </div>
+      <div class="demo-buttons" id="facSamples"></div>
+    </div>
+    <div id="intakeWarnings" class="translation-banner" hidden></div>
+    <div class="three-way">
+      <div><h3>1 · Raw input</h3><pre id="intakeRaw" class="code">—</pre></div>
+      <div><h3>2 · Generated Lean 4</h3><pre id="intakeLean" class="code">—</pre></div>
+      <div><h3>3 · Lean back-translation</h3><pre id="intakeEnglish" class="code">—</pre></div>
+    </div>
+    <button class="btn btn-primary" id="intakeUse" disabled>Load parsed contract into the calculator</button>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Certificate calculator</h2>
       <span id="facSelectedLabel" class="muted">—</span>
     </div>

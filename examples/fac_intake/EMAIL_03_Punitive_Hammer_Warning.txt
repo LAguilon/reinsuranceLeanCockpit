@@ -1,0 +1,6 @@
+From: broker@aon.example
+Subject: D&O cash call - Apex BioTech - wording issues
+
+Insured: Apex BioTech Corp. | Cedant: Continental Re | Line: D&O | Layer: 20% of $10M xs $10M | ALAE included within limits | Gross Prem: $0 (0% brokerage, $0 paid) | Paid Indemnity: $16,000,000 | Paid ALAE: $6,000,000 | Prior Paid: $0 | Please wire $2,400,000.
+
+Wording note: the slip carries a hammer clause, a punitive damages exclusion and a consent to settle provision. Also references PFAS and subrogation.

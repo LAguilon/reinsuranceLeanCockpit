@@ -278,3 +278,10 @@ details.theorems table { margin-top: 10px; }
 .guide-card p { margin: 0; color: var(--muted); font-size: 12.5px; }
 .guide-list { margin: 0 0 8px 18px; padding: 0; color: var(--muted); font-size: 12.5px; }
 .guide-list li { margin: 6px 0; }
+
+.intake-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+@media (max-width: 1000px) { .intake-grid { grid-template-columns: 1fr; } }
+.three-way { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+@media (max-width: 1200px) { .three-way { grid-template-columns: 1fr; } }
+.three-way h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+.three-way .code { max-height: 260px; }

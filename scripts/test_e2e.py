@@ -338,6 +338,37 @@ def main() -> int:
             f"{guide.read_text().count(chr(10)) if guide.exists() else 0} lines",
         )
 
+        # ---- Universal intake (v0.8) ---------------------------------------
+        intake_samples = fac.get("intakeSamples", [])
+        check("presets expose 4 intake samples", len(intake_samples) == 4)
+        intake_expected = {
+            "EMAIL_01_URGENT_AL_Trucking.txt": ("text", "DISPUTE_OVERBILLED", 78_000, 0),
+            "EMAIL_03_Punitive_Hammer_Warning.txt": ("text", "DISPUTE_OVERBILLED", 400_000, 5),
+            "ACORD_ECOT_02_AL_OSLR_Premature_CashCall.xml": (
+                "acord_xml", "DISPUTE_PREMATURE_OSLR_CASHCALL", 250_000, 0),
+            "FAC-AL-05_Premature_OSLR_Cash_Call.pdf": (
+                "pdf", "DISPUTE_PREMATURE_OSLR_CASHCALL", 250_000, 0),
+        }
+        for sample in intake_samples:
+            out = request(base, "/api/fac-intake", {"sampleName": sample["name"]})
+            fmt, verdict, over, warns = intake_expected[sample["name"]]
+            row = out["report"]["results"][0]
+            check(
+                f"intake {sample['name']}: format/verdict/overbill",
+                out["sourceFormat"] == fmt and row["verdict"] == verdict and row["overbilledUsd"] == over,
+                f"{out['sourceFormat']}/{row['verdict']}/{row['overbilledUsd']}",
+            )
+            check(
+                f"intake {sample['name']}: translation warnings",
+                len(out["translationWarnings"]) == warns,
+                str(len(out["translationWarnings"])),
+            )
+            check(
+                f"intake {sample['name']}: generated Lean compiles to a def",
+                "def certificate" in row["leanSpecCode"] and "def claim" in row["leanSpecCode"],
+            )
+            check(f"intake {sample['name']}: back-translation present", len(row["backTranslation"]) > 40)
+
         # ---- ACORD GRLC / Ruschlikon STP (v0.7) ----------------------------
         acord = request(base, "/api/acord-samples")
         check("GET /api/acord-samples: 3 messages", len(acord["samples"]) == 3)

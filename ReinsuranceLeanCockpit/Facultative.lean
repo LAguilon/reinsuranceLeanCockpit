@@ -302,7 +302,7 @@ arithmetic — never from a template that could contradict the numbers. -/
 def explainVerdict (cert : FacCertificate) (sub : FacClaimSubmission)
     (ourPaid incurred oslr grossCash verified over under : Nat) : String :=
   if over > 0 then
-    if sub.oslrIndemnityUsd > 0 && ourPaid ≤ cert.attachmentUsd then
+    if sub.oslrIndemnityUsd > 0 && sub.paidIndemnityUsd ≤ cert.attachmentUsd then
       s!"Premature OSLR cash call: paid indemnity ({usd sub.paidIndemnityUsd}) is still below the {usd cert.attachmentUsd} attachment, so no cash is payable; the {usd oslr} case reserve is booked as a liability, not wired. Cedent billed {usd sub.cedentBilledNowUsd} against {usd grossCash} cash payable — overbilled by {usd over}."
     else if cert.alaeClause == .proRataInAddition && sub.paidIndemnityUsd ≤ cert.attachmentUsd then
       s!"ALAE Pro-Rata in Addition: ground-up indemnity ({usd sub.paidIndemnityUsd}) is below the {usd cert.attachmentUsd} attachment, so no ceded indemnity exists and ALAE cannot be added to pierce the attachment. Verified due is {usd verified}."
@@ -347,7 +347,7 @@ def auditFacClaim (cert : FacCertificate) (sub : FacClaimSubmission) : FacAuditR
   let under := grossCash - sub.cedentBilledNowUsd
   let verdict :=
     if over > 0 then
-      if sub.oslrIndemnityUsd > 0 && ourPaid ≤ cert.attachmentUsd then
+      if sub.oslrIndemnityUsd > 0 && sub.paidIndemnityUsd ≤ cert.attachmentUsd then
         "DISPUTE_PREMATURE_OSLR_CASHCALL"
       else "DISPUTE_OVERBILLED"
     else if under > 0 then "REVIEW_UNDERBILLED"

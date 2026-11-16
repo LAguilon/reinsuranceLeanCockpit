@@ -1,0 +1,4 @@
+From: claims@travelers.example
+Subject: Cash call - Sunbelt Stucco - GL - clean
+
+Insured: Sunbelt Stucco & Plaster | Cedant: Travelers | Line: General Liability | Layer: $500,000 xs $500,000 | ALAE pro-rata in addition | Gross Prem: $60,000 (15% brokerage, $60,000 paid) | Paid Indemnity: $760,000 | Paid ALAE: $0 | Case Reserve Indemnity: $0 | Prior Paid: $0 | Cash call of $260,000 attached.

@@ -29,10 +29,12 @@ SLIPS = EXAMPLES / "slips"
 FAC_SLIPS = EXAMPLES / "fac_slips"
 FAC_BUNDLE = EXAMPLES / "us_facultative_desk.json"
 ACORD_DIR = EXAMPLES / "acord"
+INTAKE_DIR = EXAMPLES / "fac_intake"
 
 sys.path.insert(0, str(ROOT / "server"))
 import slip_parser  # noqa: E402
 import acord_adapter  # noqa: E402
+import fac_intake  # noqa: E402
 
 MAX_REQUEST_BYTES = 2_000_000
 
@@ -280,6 +282,50 @@ def process_acord(payload: dict) -> dict:
     }
 
 
+INTAKE_SAMPLES = [
+    ("EMAIL_01_URGENT_AL_Trucking.txt", "Broker email · Auto Liability with an OSLR cash call", "text"),
+    ("EMAIL_03_Punitive_Hammer_Warning.txt", "Broker email · D&O with punitive/hammer wording", "text"),
+    ("ACORD_ECOT_02_AL_OSLR_Premature_CashCall.xml", "ACORD GRLC ECOT · OSLR trap", "acord_xml"),
+    ("FAC-AL-05_Premature_OSLR_Cash_Call.pdf", "Cedent cash-call PDF · OSLR trap", "pdf"),
+]
+
+
+def find_sample(name: str) -> Path:
+    for directory in (INTAKE_DIR, ACORD_DIR, FAC_SLIPS):
+        candidate = directory / Path(name).name
+        if candidate.exists():
+            return candidate
+    raise ValueError(f"intake sample not found: {name}")
+
+
+def intake_samples() -> list[dict]:
+    out = []
+    for name, label, fmt in INTAKE_SAMPLES:
+        path = find_sample(name)
+        out.append({"name": name, "label": label, "format": fmt, "size": path.stat().st_size})
+    return out
+
+
+def process_intake(payload: dict) -> dict:
+    if payload.get("sampleName"):
+        path = find_sample(payload["sampleName"])
+        data, filename = path.read_bytes(), path.name
+    elif payload.get("contentBase64"):
+        data = base64.b64decode(payload["contentBase64"])
+        filename = payload.get("filename", "upload.bin")
+    elif payload.get("content"):
+        data = str(payload["content"]).encode("utf-8")
+        filename = payload.get("filename", "pasted.txt")
+    else:
+        raise ValueError("provide sampleName, contentBase64 or content")
+
+    result = fac_intake.intake_bytes(data, filename)
+    report, ms = run_lean_fac(fac_intake.bundle_for(result["certificate"], result["claim"]))
+    result["report"] = report
+    result["leanExecMs"] = ms
+    return result
+
+
 def read_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -350,6 +396,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(self.presets())
             if path == "/api/fac-presets":
                 return self.send_json(self.fac_presets())
+            if path == "/api/fac-intake-samples":
+                return self.send_json({"samples": intake_samples()})
             if path == "/api/acord-samples":
                 return self.send_json({"samples": acord_samples()})
             if path.startswith("/api/slips/"):
@@ -374,6 +422,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({**report, "leanExecMs": ms})
             if path == "/api/parse-slip":
                 return self.send_json(self.parse_slip(body))
+            if path == "/api/fac-intake":
+                return self.send_json(process_intake(body))
             if path == "/api/acord-process":
                 return self.send_json(process_acord(body))
             if path == "/api/fac-audit":
@@ -415,6 +465,7 @@ class Handler(SimpleHTTPRequestHandler):
             "cases": fac_cases(bundle),
             "report": report,
             "workflowTrace": workflow_trace(report, bundle),
+            "intakeSamples": intake_samples(),
             "leanExecMs": ms,
         }
 

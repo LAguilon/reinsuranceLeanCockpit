@@ -845,6 +845,86 @@ async function runFacAudit() {
   }
 }
 
+function renderIntakeSamples(samples) {
+  $("#facSamples").innerHTML = samples
+    .map(
+      (s, i) => `<button class="btn demo-btn" data-intake="${s.name}">
+        <span>${i + 1} · ${s.label}</span>
+        <span class="pdf-link">${s.format}</span>
+      </button>`
+    )
+    .join("");
+  document.querySelectorAll("[data-intake]").forEach((btn) => {
+    btn.addEventListener("click", () => bindIntake(btn.dataset.intake));
+  });
+}
+
+function renderIntake(result) {
+  $("#intakeRaw").textContent = (result.extractedText || "").slice(0, 4000);
+  const row = result.report.results[0];
+  $("#intakeLean").textContent = row.leanSpecCode;
+  $("#intakeEnglish").textContent = row.backTranslation;
+  const warnings = [...(result.parseWarnings || []), ...(result.translationWarnings || [])];
+  const banner = $("#intakeWarnings");
+  banner.hidden = warnings.length === 0;
+  if (warnings.length) {
+    banner.innerHTML = `<b>${warnings.length} intake warning(s) — the paper says more than the model can</b>` +
+      `<ul>${warnings.map((w) => `<li>${w}</li>`).join("")}</ul>`;
+  }
+  state.fac.intake = result;
+  $("#intakeUse").disabled = false;
+}
+
+async function bindIntake(name) {
+  try {
+    const result = await api("/api/fac-intake", {
+      method: "POST",
+      body: JSON.stringify({ sampleName: name }),
+    });
+    renderIntake(result);
+  } catch (err) {
+    $("#intakeWarnings").hidden = false;
+    $("#intakeWarnings").textContent = err.message;
+  }
+}
+
+async function bindIntakeFile(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = String(reader.result).split(",")[1] || "";
+    try {
+      const result = await api("/api/fac-intake", {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, contentBase64: base64 }),
+      });
+      renderIntake(result);
+    } catch (err) {
+      $("#intakeWarnings").hidden = false;
+      $("#intakeWarnings").textContent = err.message;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function loadIntakeIntoCalculator() {
+  const r = state.fac.intake;
+  if (!r) return;
+  const { certificate, claim } = r;
+  state.fac.bundle.certificates.push(certificate);
+  state.fac.bundle.claims.push(claim);
+  state.fac.selected = certificate.certId;
+  $("#facInd").value = claim.paidIndemnityUsd;
+  $("#facAlae").value = claim.paidAlaeUsd;
+  $("#facPrior").value = claim.priorPaidUsd;
+  $("#facBilledInput").value = claim.cedentBilledNowUsd;
+  $("#facShare").value = certificate.signedShareBps;
+  $("#facAtt").value = certificate.attachmentUsd;
+  $("#facLimit").value = certificate.occLimitUsd;
+  $("#facClause").value = certificate.alaeClause;
+  $("#facSelectedLabel").textContent = `${certificate.certId} · ${certificate.insuredName}`;
+  runFacAudit();
+}
+
 async function loadFac() {
   try {
     const data = await api("/api/fac-presets");
@@ -854,6 +934,7 @@ async function loadFac() {
     state.fac.loaded = true;
     renderFacSummary(data.report);
     renderFacCases(data.cases, data.bundle);
+    renderIntakeSamples(data.intakeSamples || []);
     selectFacCase(data.cases[0].certId);
   } catch (err) {
     $("#facCases").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
@@ -865,6 +946,23 @@ function setupFacUI() {
     btn.addEventListener("click", () => showView(btn.dataset.view));
   });
   $("#facRun").addEventListener("click", runFacAudit);
+  $("#intakeUse").addEventListener("click", loadIntakeIntoCalculator);
+  const drop = $("#facDrop");
+  const fileInput = $("#facFile");
+  if (drop && fileInput) {
+    drop.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => fileInput.files[0] && bindIntakeFile(fileInput.files[0]));
+    ["dragover", "dragenter"].forEach((evt) =>
+      drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.add("over"); })
+    );
+    ["dragleave", "drop"].forEach((evt) =>
+      drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.remove("over"); })
+    );
+    drop.addEventListener("drop", (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) bindIntakeFile(f);
+    });
+  }
   $("#facCopy").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText($("#facMemo").textContent);
