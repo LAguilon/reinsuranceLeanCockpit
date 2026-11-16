@@ -48,6 +48,9 @@ COPY --from=lean-builder /app/examples ./examples
 COPY --from=lean-builder /app/docs ./docs
 COPY --from=lean-builder /app/scripts ./scripts
 
+# The audit ledger writes SQLite here; the runtime user must own it.
+RUN mkdir -p /app/data && chown app:app /app/data
+
 USER app
 ENV HOST=0.0.0.0 PORT=8080
 EXPOSE 8080
