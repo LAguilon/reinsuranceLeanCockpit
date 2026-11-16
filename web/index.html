@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ReinsuranceLean Cockpit v0.3</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">▣</span>
+    <div>
+      <h1>ReinsuranceLean Cockpit <span class="ver">v0.3</span></h1>
+      <p class="sub">Formal contract gatekeeper · static loophole scanner · multi-event solvency simulator</p>
+    </div>
+  </div>
+  <div class="badges">
+    <span class="pill pill-green" id="theoremPill">✓ — kernel-checked theorems</span>
+    <span class="pill pill-green">0 sorryAx</span>
+    <span class="pill pill-green">Lean 4 exact integers</span>
+    <span class="pill pill-mono" id="latencyPill">verified in — ms</span>
+  </div>
+</header>
+
+<section class="panel portfolio-bar">
+  <label for="portfolioSelect">Working portfolio</label>
+  <select id="portfolioSelect"></select>
+  <button id="resetBtn" class="btn btn-ghost">Reset working portfolio</button>
+  <span class="gate" id="gateBadge">—</span>
+</section>
+
+<section class="hero">
+  <div class="panel gauge-card">
+    <h2>Solvency II ratio</h2>
+    <svg id="gauge" viewBox="0 0 320 180" role="img" aria-label="Solvency II gauge"></svg>
+    <div class="gauge-legend">
+      <span><i class="dot red"></i>&lt;100% breach</span>
+      <span><i class="dot amber"></i>100–149%</span>
+      <span><i class="dot green"></i>≥150%</span>
+    </div>
+  </div>
+
+  <div class="panel scr-card">
+    <h2>Total SCR vs own funds</h2>
+    <div class="scr-bar" id="scrBar"></div>
+    <ul class="scr-legend" id="scrLegend"></ul>
+    <div class="scr-total"><span id="scrTotal">—</span> <small>own funds <b id="ownFunds">—</b></small></div>
+  </div>
+
+  <div class="kpis">
+    <div class="panel kpi">
+      <span class="kpi-label">Bound contracts</span>
+      <strong id="kpiContracts">—</strong>
+      <small id="kpiGate">gatekeeper —</small>
+    </div>
+    <div class="panel kpi">
+      <span class="kpi-label">Critical loopholes</span>
+      <strong id="kpiCritical" class="danger">—</strong>
+      <small id="kpiWarnings">—</small>
+    </div>
+    <div class="panel kpi">
+      <span class="kpi-label">Unhedged peak</span>
+      <strong id="kpiPeak">—</strong>
+      <small>single event, EUR</small>
+    </div>
+  </div>
+</section>
+
+<section class="panel tower-panel">
+  <div class="panel-head">
+    <h2>Reinsurance tower &amp; exposure</h2>
+    <div class="tabs" id="perilTabs"></div>
+  </div>
+  <div class="tower-grid">
+    <div>
+      <div class="col-head">Inward assumed <span class="muted">(retention &amp; limit)</span></div>
+      <svg id="tower" viewBox="0 0 560 360" role="img" aria-label="Tower diagram"></svg>
+      <div class="tower-legend">
+        <span><i class="swatch inward"></i>inward layer</span>
+        <span><i class="swatch outward"></i>outward layer</span>
+        <span><i class="swatch gap"></i>unhedged gap</span>
+      </div>
+    </div>
+    <div class="tables">
+      <table class="data-table" id="currencyTable">
+        <caption>Exposure by currency</caption>
+      </table>
+      <table class="data-table" id="perilTable">
+        <caption>Exposure by peril</caption>
+      </table>
+    </div>
+  </div>
+  <ul class="findings" id="findings"></ul>
+</section>
+
+<section class="panel slip-panel">
+  <div class="panel-head">
+    <h2>PDF / MRC slip validator</h2>
+    <span class="muted">Upload a bound slip — Lean accepts or rejects it</span>
+  </div>
+  <div class="slip-grid">
+    <div>
+      <div id="dropzone" class="dropzone">
+        <p><strong>Drop a .pdf or .txt slip here</strong></p>
+        <p class="muted">or click to choose a file</p>
+        <input type="file" id="fileInput" accept=".pdf,.txt" hidden />
+      </div>
+      <div class="demo-buttons" id="demoButtons"></div>
+    </div>
+    <div class="slip-output">
+      <div class="slip-status" id="slipStatus">No slip parsed yet.</div>
+      <h3>Extracted text</h3>
+      <pre id="slipText" class="code">—</pre>
+      <h3>Parsed Lean contract</h3>
+      <pre id="slipJson" class="code">—</pre>
+      <div class="slip-actions">
+        <button class="btn btn-primary" id="keepBtn" disabled>Keep contract in working portfolio</button>
+        <button class="btn btn-ghost" id="undoBtn" disabled>Undo</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel sim-panel">
+  <div class="panel-head">
+    <h2>Multi-event &amp; FX stress simulator</h2>
+    <span class="muted">Every figure below is returned by the Lean binary</span>
+  </div>
+  <div class="fx-row">
+    <label>USD → EUR cents <input type="number" id="fxUSD" value="100" min="0" /></label>
+    <label>JPY → EUR cents <input type="number" id="fxJPY" value="60" min="0" /></label>
+    <button class="btn btn-primary" id="runSimBtn">Run live simulation in Lean</button>
+  </div>
+  <table class="data-table" id="eventTable">
+    <caption>Catastrophe events (editable)</caption>
+    <thead><tr><th>Event</th><th>Peril</th><th>Currency</th><th>Ground-up loss</th><th></th></tr></thead>
+    <tbody id="eventRows"></tbody>
+  </table>
+  <button class="btn btn-ghost" id="addEventBtn">+ Add event</button>
+
+  <div class="sim-results" id="simResults"></div>
+
+  <details class="theorems">
+    <summary>Kernel proof certificate registry <span id="theoremCount" class="muted"></span></summary>
+    <table class="data-table" id="theoremTable">
+      <thead><tr><th>Theorem</th><th>Module</th><th>Statement</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </details>
+</section>
+
+<footer class="foot">ReinsuranceLean Cockpit · exact integer arithmetic · no floating point in the engine</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import ReinsuranceLeanCockpit.Contracts
 import ReinsuranceLeanCockpit.Solvency
+import ReinsuranceLeanCockpit.Validation
 
 namespace ReinsuranceLeanCockpit
 
@@ -308,6 +309,10 @@ def scanPortfolioLoopholes (p : BoundPortfolio) : List LoopholeFinding :=
 structure PortfolioAuditReport where
   portfolio : String
   contractCount : Nat
+  /-- Gatekeeper verdict: every contract admitted by `BoundContract.isValid`. -/
+  allContractsValid : Bool
+  /-- Human-readable blocking errors, empty when the portfolio is admissible. -/
+  validationErrors : List String
   exposureByCurrency : List ExposureRow
   exposureByPeril : List ExposureRow
   findings : List LoopholeFinding
@@ -347,6 +352,8 @@ def auditPortfolio (p : BoundPortfolio) : PortfolioAuditReport :=
   let t := tally fs
   { portfolio := p.name
     contractCount := p.contracts.length
+    allContractsValid := isPortfolioValid p.contracts
+    validationErrors := portfolioValidationErrors p.contracts
     exposureByCurrency := exposuresByCurrency p
     exposureByPeril := exposuresByPeril p
     findings := fs

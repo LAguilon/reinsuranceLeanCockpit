@@ -1,0 +1,28 @@
+{
+  "scenarioName": "Global twin cat + USD strengthening to parity",
+  "fxOverridesToEurCents": [
+    { "currency": "EUR", "cents": 100 },
+    { "currency": "USD", "cents": 100 },
+    { "currency": "JPY", "cents": 60 }
+  ],
+  "events": [
+    {
+      "eventName": "Hurricane Delia (US Gulf landfall)",
+      "peril": "Windstorm",
+      "currency": "USD",
+      "groundUpLoss": 95000000
+    },
+    {
+      "eventName": "Tokyo Bay earthquake",
+      "peril": "Earthquake",
+      "currency": "JPY",
+      "groundUpLoss": 18000000000
+    },
+    {
+      "eventName": "Rhine flood",
+      "peril": "Flood",
+      "currency": "EUR",
+      "groundUpLoss": 25000000
+    }
+  ]
+}

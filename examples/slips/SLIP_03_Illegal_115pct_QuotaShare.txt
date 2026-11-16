@@ -1,0 +1,19 @@
+MARKET REFORM CONTRACT (REINSURANCE SLIP)
+==================================================
+Contract_ID: CNT-CY-BROKER-TYPO
+Contract_Name: Cyber Outward Quota Share 115 Percent (broker typo)
+Counterparty: Meridian Re
+Credit_Rating: A
+Direction: Outward
+Currency: EUR
+Perils: Cyber
+Inuring_Priority: 10
+Contract_Type: QuotaShare
+Share_Bps: 11500
+Event_Cap: 12000000
+Commission_Bps: 2000
+--------------------------------------------------
+WORDING: Subject to standard hours clause and exact integer settlement.
+All amounts are expressed in minor units of the stated currency.
+Governing law: England and Wales. Arbitration: London, LCIA rules.
+Signed for and on behalf of the reinsurer by duly authorised signatory.

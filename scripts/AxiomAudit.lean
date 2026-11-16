@@ -40,3 +40,15 @@ open ReinsuranceLeanCockpit
 #print axioms tally_sum
 #print axioms auditPortfolio_totalFound
 #print axioms auditPortfolio_counts_sum
+
+/-! ### v0.3 — gatekeeper and simulator -/
+
+#print axioms isPortfolioValid_nil
+#print axioms isPortfolioValid_cons
+#print axioms isPortfolioValid_forall
+#print axioms validateContract_isEmpty_iff
+#print axioms applyStopLoss_le_loss
+#print axioms applyStopLoss_bounded
+#print axioms netAfterStopLoss_conservation
+#print axioms scenarioReport_scr_sum
+#print axioms scenarioReport_isSolvent_iff

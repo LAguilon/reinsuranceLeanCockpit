@@ -1,4 +1,4 @@
-import ReinsuranceLeanCockpit.Diagnostics
+import ReinsuranceLeanCockpit.Simulation
 import Lean.Data.Json
 
 namespace ReinsuranceLeanCockpit
@@ -251,6 +251,8 @@ instance : ToJson PortfolioAuditReport where
     Json.mkObj
       [ ("portfolio", Json.str r.portfolio)
       , ("contractCount", ToJson.toJson r.contractCount)
+      , ("allContractsValid", ToJson.toJson r.allContractsValid)
+      , ("validationErrors", ToJson.toJson r.validationErrors)
       , ("exposureByCurrency", ToJson.toJson r.exposureByCurrency)
       , ("exposureByPeril", ToJson.toJson r.exposureByPeril)
       , ("findings", ToJson.toJson r.findings)
@@ -276,5 +278,203 @@ def loadPortfolio (path : System.FilePath) : IO BoundPortfolio := do
 web/PDF pipelines. -/
 def auditReportJson (p : BoundPortfolio) : String :=
   Json.compress (ToJson.toJson (auditPortfolio p))
+
+/-! ## Scenario codecs -/
+
+instance : ToJson ScenarioEvent where
+  toJson e :=
+    Json.mkObj
+      [ ("eventName", Json.str e.eventName)
+      , ("peril", ToJson.toJson e.peril)
+      , ("currency", ToJson.toJson e.currency)
+      , ("groundUpLoss", ToJson.toJson e.groundUpLoss) ]
+
+instance : FromJson ScenarioEvent where
+  fromJson? j := do
+    let eventName ← j.getObjValAs? String "eventName"
+    let peril ← j.getObjValAs? Peril "peril"
+    let currency ← j.getObjValAs? Currency "currency"
+    let groundUpLoss ← j.getObjValAs? Nat "groundUpLoss"
+    pure { eventName := eventName, peril := peril, currency := currency
+           groundUpLoss := groundUpLoss }
+
+instance : ToJson StressScenario where
+  toJson s :=
+    Json.mkObj
+      [ ("scenarioName", Json.str s.scenarioName)
+      , ("fxOverridesToEurCents", fxTableToJson s.fxOverridesToEurCents)
+      , ("events", ToJson.toJson s.events) ]
+
+instance : FromJson StressScenario where
+  fromJson? j := do
+    let scenarioName ← j.getObjValAs? String "scenarioName"
+    let fxJson ← j.getObjVal? "fxOverridesToEurCents"
+    let fx ← fxTableFromJson fxJson
+    let events ← j.getObjValAs? (List ScenarioEvent) "events"
+    pure { scenarioName := scenarioName, fxOverridesToEurCents := fx, events := events }
+
+instance : ToJson EventSimulationResult where
+  toJson r :=
+    Json.mkObj
+      [ ("eventName", Json.str r.eventName)
+      , ("peril", ToJson.toJson r.peril)
+      , ("currency", ToJson.toJson r.currency)
+      , ("groundUpLoss", ToJson.toJson r.groundUpLoss)
+      , ("inwardGrossEur", ToJson.toJson r.inwardGrossEur)
+      , ("outwardRecoveredEur", ToJson.toJson r.outwardRecoveredEur)
+      , ("netRetainedEur", ToJson.toJson r.netRetainedEur)
+      , ("reinstFeeEur", ToJson.toJson r.reinstFeeEur) ]
+
+instance : ToJson ScenarioSimulationReport where
+  toJson r :=
+    Json.mkObj
+      [ ("scenarioName", Json.str r.scenarioName)
+      , ("portfolioName", Json.str r.portfolioName)
+      , ("allContractsValid", ToJson.toJson r.allContractsValid)
+      , ("validationErrors", ToJson.toJson r.validationErrors)
+      , ("events", ToJson.toJson r.events)
+      , ("annualInwardGrossEur", ToJson.toJson r.annualInwardGrossEur)
+      , ("annualOutwardRecoveredEur", ToJson.toJson r.annualOutwardRecoveredEur)
+      , ("annualNetBeforeStopLossEur", ToJson.toJson r.annualNetBeforeStopLossEur)
+      , ("stopLossRecoveredEur", ToJson.toJson r.stopLossRecoveredEur)
+      , ("annualFinalNetLossEur", ToJson.toJson r.annualFinalNetLossEur)
+      , ("totalReinstFeeEur", ToJson.toJson r.totalReinstFeeEur)
+      , ("counterpartyScrEur", ToJson.toJson r.counterpartyScrEur)
+      , ("otherScrEur", ToJson.toJson r.otherScrEur)
+      , ("totalScrEur", ToJson.toJson r.totalScrEur)
+      , ("ownFundsEur", ToJson.toJson r.ownFundsEur)
+      , ("solvencyRatioPct", ToJson.toJson r.solvencyRatioPct)
+      , ("isSolvent", ToJson.toJson r.isSolvent) ]
+
+/-- Load a stress scenario from a file. -/
+def loadScenario (path : System.FilePath) : IO StressScenario := do
+  let text ← IO.FS.readFile path
+  match Json.parse text with
+  | .error e => throw (IO.userError s!"{path}: invalid JSON: {e}")
+  | .ok j =>
+      match fromJson? j with
+      | .error e => throw (IO.userError s!"{path}: invalid scenario: {e}")
+      | .ok s => pure s
+
+/-! ## Kernel Proof Certificate Registry -/
+
+/-- One kernel-checked theorem, in the form the web cockpit displays. -/
+structure TheoremRecord where
+  name : String
+  module : String
+  statement : String
+  deriving Repr
+
+instance : ToJson TheoremRecord where
+  toJson r :=
+    Json.mkObj
+      [ ("name", Json.str r.name)
+      , ("module", Json.str r.module)
+      , ("statement", Json.str r.statement) ]
+
+def theoremRecord (name module statement : String) : TheoremRecord :=
+  { name := name, module := module, statement := statement }
+
+/-- Every theorem proved by the kernel in this repository, with the claim it
+makes. The web cockpit renders this list directly, and `lake exe cockpit
+theorems --json` is the canonical machine-readable form.
+
+A theorem missing from this list is not "unproved" — it is simply not surfaced
+in the UI. The axiom audit in `scripts/AxiomAudit.lean` is the authority on what
+depends on what. -/
+def verifiedTheorems : List TheoremRecord :=
+  [ theoremRecord "xolPayout_le_loss" "Core"
+      "XoL payout never exceeds the underlying loss."
+  , theoremRecord "xolPayout_bounded" "Core"
+      "XoL payout never exceeds the occurrence limit or the remaining aggregate limit."
+  , theoremRecord "xol_loss_conservation" "Core"
+      "Net retained plus XoL payout equals the gross loss."
+  , theoremRecord "qsPayout_le_loss" "Core"
+      "Quota-share payout never exceeds the loss when the share is at most 100%."
+  , theoremRecord "stepXoLTreaty_agg_safe" "Core"
+      "One treaty step partitions available aggregate capacity: payout plus remaining equals available."
+  , theoremRecord "stepXoLTreaty_remAgg_le" "Core"
+      "A treaty step can only consume aggregate capacity, never create it."
+  , theoremRecord "evaluateSolvency_totalScr" "Solvency"
+      "The reported total SCR equals the sum of its three components."
+  , theoremRecord "evaluateSolvency_isSolvent_iff" "Solvency"
+      "The solvency flag is exactly the ratio-at-least-100% test."
+  , theoremRecord "solvencyRatioPct_zero_scr" "Solvency"
+      "A zero SCR yields the 999 sentinel ratio."
+  , theoremRecord "solvencyRatioPct_pos" "Solvency"
+      "With positive SCR the ratio is the integer percentage, rounded down."
+  , theoremRecord "solvencyRatioPct_mono_ownFunds" "Solvency"
+      "Adding own funds never lowers the solvency ratio."
+  , theoremRecord "evaluateSolvency_ratio_mono_ownFunds" "Solvency"
+      "Adding own funds never makes a solvent company insolvent."
+  , theoremRecord "alpine_safe_at_inception_fx" "AlpineShowcase"
+      "The naive Alpine structure is safe at 0.80 EUR/USD for every hurricane size."
+  , theoremRecord "alpine_fixed_usd_bounded" "AlpineShowcase"
+      "The currency-matched structure retains at most 25M USD for every loss."
+  , theoremRecord "alpine_fixed_fx_safe" "AlpineShowcase"
+      "The currency-matched structure stays under 25M EUR for every loss and every FX at or below parity."
+  , theoremRecord "inward_agg_capacity_eq" "AlpineShowcase"
+      "The inward treaty's aggregate capacity is exactly twice its occurrence limit."
+  , theoremRecord "outward_agg_capacity_eq" "AlpineShowcase"
+      "The outward retro's aggregate capacity equals its occurrence limit, with no reinstatement."
+  , theoremRecord "surplusPayout_le_loss" "Contracts"
+      "A surplus share never pays more than the loss."
+  , theoremRecord "stopLossPayout_le_loss" "Contracts"
+      "An aggregate stop loss never pays more than the annual loss."
+  , theoremRecord "surplusPayout_mono" "Contracts"
+      "A surplus share is monotone in the loss."
+  , theoremRecord "surplusPayout_zero_below" "Contracts"
+      "A surplus share pays nothing below its retention line."
+  , theoremRecord "stopLossPayout_zero_below" "Contracts"
+      "An aggregate stop loss pays nothing below its attachment."
+  , theoremRecord "isValid_quotaShare_shareBps" "Contracts"
+      "Validity exposes the quota-share rate bound of at most 100%."
+  , theoremRecord "evalContractPayout_le_loss" "Contracts"
+      "Every valid contract, of any of the four forms, pays at most the loss."
+  , theoremRecord "applyInuringTower_conservation" "Contracts"
+      "For any tower of valid contracts, net retained plus total recovered equals the gross loss."
+  , theoremRecord "applyInuringTower_recovered_le" "Contracts"
+      "For any tower of valid contracts, total recoveries never exceed the gross loss."
+  , theoremRecord "applyInuringTower_net_le" "Contracts"
+      "For any tower of valid contracts, net retained never exceeds the gross loss."
+  , theoremRecord "portfolioStress_totalScr" "Diagnostics"
+      "The portfolio SCR total equals its four printed components."
+  , theoremRecord "portfolioStress_isSolvent_iff" "Diagnostics"
+      "The portfolio solvency flag is exactly the ratio-at-least-100% test."
+  , theoremRecord "counterpartyCharge_mono" "Diagnostics"
+      "The counterparty default charge is monotone in the recoverable amount."
+  , theoremRecord "tally_sum" "Diagnostics"
+      "The three severity counts partition the list of findings."
+  , theoremRecord "auditPortfolio_totalFound" "Diagnostics"
+      "The audit report's finding count equals the length of its finding list."
+  , theoremRecord "auditPortfolio_counts_sum" "Diagnostics"
+      "The audit report's severity counts add up to its finding total."
+  , theoremRecord "isPortfolioValid_nil" "Validation"
+      "The empty portfolio is admissible."
+  , theoremRecord "isPortfolioValid_cons" "Validation"
+      "Portfolio validity unfolds through a conjunction over the head contract and the tail."
+  , theoremRecord "isPortfolioValid_forall" "Validation"
+      "If a portfolio passes the gate, every contract in it satisfies isValid = true."
+  , theoremRecord "validateContract_isEmpty_iff" "Validation"
+      "The gatekeeper's blocking-error list is empty exactly when the contract is valid."
+  , theoremRecord "checkContractDetails_eq_nil_of_valid" "Validation"
+      "A valid contract produces no blocking validation messages."
+  , theoremRecord "portfolioValidationErrors_nil" "Validation"
+      "The empty portfolio has no validation errors."
+  , theoremRecord "applyStopLoss_le_loss" "Simulation"
+      "A stop-loss recovery never exceeds the annual net loss."
+  , theoremRecord "applyStopLoss_bounded" "Simulation"
+      "A stop-loss recovery never exceeds its limit."
+  , theoremRecord "netAfterStopLoss_conservation" "Simulation"
+      "Net after stop loss plus stop-loss recovery equals the annual net loss."
+  , theoremRecord "scenarioReport_scr_sum" "Simulation"
+      "The simulation's reported SCR total equals its four printed components."
+  , theoremRecord "scenarioReport_isSolvent_iff" "Simulation"
+      "The simulation's solvency flag is exactly the ratio-at-least-100% test." ]
+
+def verifiedTheoremsJson : String :=
+  Json.compress (ToJson.toJson verifiedTheorems)
+
+def theoremCount : Nat := verifiedTheorems.length
 
 end ReinsuranceLeanCockpit

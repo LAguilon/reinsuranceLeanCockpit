@@ -1,0 +1,21 @@
+MARKET REFORM CONTRACT (REINSURANCE SLIP)
+==================================================
+Contract_ID: CNT-EQ-CAYMAN-99
+Contract_Name: Japan Earthquake Retro Layer 10M xs 15M (EUR)
+Counterparty: Cayman Cell 99
+Credit_Rating: Unrated
+Direction: Outward
+Currency: EUR
+Perils: Earthquake
+Inuring_Priority: 10
+Contract_Type: XoL
+Attachment: 15000000
+Occurrence_Limit: 10000000
+Aggregate_Limit: 10000000
+Reinstatement_Rate_Bps: 0
+Base_Premium: 1100000
+--------------------------------------------------
+WORDING: Subject to standard hours clause and exact integer settlement.
+All amounts are expressed in minor units of the stated currency.
+Governing law: England and Wales. Arbitration: London, LCIA rules.
+Signed for and on behalf of the reinsurer by duly authorised signatory.

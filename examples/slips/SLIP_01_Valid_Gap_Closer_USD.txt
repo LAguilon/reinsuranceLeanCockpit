@@ -1,0 +1,21 @@
+MARKET REFORM CONTRACT (REINSURANCE SLIP)
+==================================================
+Contract_ID: CNT-WS-GAP-FIX
+Contract_Name: US Windstorm Gap Closing Layer 10M xs 20M
+Counterparty: Swiss Re Zurich
+Credit_Rating: AA
+Direction: Outward
+Currency: USD
+Perils: Windstorm
+Inuring_Priority: 10
+Contract_Type: XoL
+Attachment: 20000000
+Occurrence_Limit: 10000000
+Aggregate_Limit: 20000000
+Reinstatement_Rate_Bps: 10000
+Base_Premium: 400000
+--------------------------------------------------
+WORDING: Subject to standard hours clause and exact integer settlement.
+All amounts are expressed in minor units of the stated currency.
+Governing law: England and Wales. Arbitration: London, LCIA rules.
+Signed for and on behalf of the reinsurer by duly authorised signatory.

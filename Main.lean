@@ -1,6 +1,7 @@
 import ReinsuranceLeanCockpit
 
 open ReinsuranceLeanCockpit
+open Lean
 
 /-!
   The cockpit CLI.
@@ -73,7 +74,7 @@ def auditFile (path : String) (asJson : Bool) : IO Unit := do
 
 def printAlpineReport : IO Unit := do
   IO.println "=================================================================="
-  IO.println "   REINSURANCE LEAN COCKPIT v0.2 - FORMAL PORTFOLIO AUDITOR"
+  IO.println "   REINSURANCE LEAN COCKPIT v0.3 - FORMAL PORTFOLIO AUDITOR"
   IO.println "=================================================================="
   IO.println ""
   IO.println "[VERIFIED] Compile-time Lean 4 Theorems Checked:"
@@ -143,15 +144,65 @@ def defaultReport : IO Unit := do
   IO.println s!"  Restructured:  {rf.totalFound} findings, ratio {rf.stress.solvencyRatioPct}%"
   IO.println "=================================================================="
 
+def printSimulation (r : ScenarioSimulationReport) : IO Unit := do
+  IO.println "=================================================================="
+  IO.println s!"  MULTI-EVENT STRESS: {r.scenarioName}"
+  IO.println s!"  Portfolio: {r.portfolioName}"
+  let gate := if r.allContractsValid then "VALID" else "GATEKEEPER REJECTED"
+  IO.println s!"  Contract gate: {gate}"
+  for e in r.validationErrors do
+    IO.println s!"    [!] {e}"
+  IO.println "=================================================================="
+  IO.println "  event                                gross       recovered     net"
+  for e in r.events do
+    IO.println s!"  {e.eventName}{String.ofList (List.replicate (37 - min 36 e.eventName.length) ' ')}{formatEurM e.inwardGrossEur}      {formatEurM e.outwardRecoveredEur}      {formatEurM e.netRetainedEur}"
+  IO.println ""
+  IO.println s!"  Annual inward gross:        {formatEurM r.annualInwardGrossEur}"
+  IO.println s!"  Outward recovered:          {formatEurM r.annualOutwardRecoveredEur}"
+  IO.println s!"  Net before stop loss:       {formatEurM r.annualNetBeforeStopLossEur}"
+  IO.println s!"  Stop loss recovered:        {formatEurM r.stopLossRecoveredEur}"
+  IO.println s!"  Final net loss:             {formatEurM r.annualFinalNetLossEur}"
+  IO.println s!"  Reinstatement drag:         {formatEurM r.totalReinstFeeEur}"
+  IO.println s!"  Counterparty default SCR:   {formatEurM r.counterpartyScrEur}"
+  IO.println s!"  Other SCR:                  {formatEurM r.otherScrEur}"
+  IO.println s!"  Total SCR:                  {formatEurM r.totalScrEur} (Own Funds: {formatEurM r.ownFundsEur})"
+  let status := if r.isSolvent then "SOLVENT (OK)" else "REGULATORY BREACH (<100%)"
+  IO.println s!"  Solvency II Ratio:          {r.solvencyRatioPct}% -> {status}"
+  IO.println "=================================================================="
+
+def simulateFile (portfolioPath scenarioPath : String) (asJson : Bool) : IO Unit := do
+  let p ← loadPortfolio portfolioPath
+  let sc ← loadScenario scenarioPath
+  if asJson then
+    IO.println (Json.compress (ToJson.toJson (runPortfolioScenario p sc)))
+  else
+    printSimulation (runPortfolioScenario p sc)
+
+def printTheorems (asJson : Bool) : IO Unit := do
+  if asJson then
+    IO.println verifiedTheoremsJson
+  else
+    IO.println s!"{theoremCount} kernel-checked theorems (no unproved goals):"
+    for t in verifiedTheorems do
+      IO.println s!"  [{t.module}] {t.name}"
+      IO.println s!"      {t.statement}"
+
 def usage : IO Unit := do
   IO.println "usage:"
   IO.println "  cockpit                              full report (v0.1 case + Continental Re audit)"
   IO.println "  cockpit audit <portfolio.json>       human-readable audit of any portfolio"
   IO.println "  cockpit audit <portfolio.json> --json  machine-readable verified audit report"
+  IO.println "  cockpit simulate <portfolio.json> <scenario.json> [--json]"
+  IO.println "  cockpit theorems [--json]            kernel proof registry"
 
 def main (args : List String) : IO Unit := do
   match args with
   | [] => defaultReport
   | ["audit", path] => auditFile path false
   | ["audit", path, "--json"] => auditFile path true
+  | ["simulate", portfolioPath, scenarioPath] => simulateFile portfolioPath scenarioPath false
+  | ["simulate", portfolioPath, scenarioPath, "--json"] =>
+      simulateFile portfolioPath scenarioPath true
+  | ["theorems"] => printTheorems false
+  | ["theorems", "--json"] => printTheorems true
   | _ => usage

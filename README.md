@@ -2,285 +2,209 @@
 
 Formal verification and risk intelligence for **bound** reinsurance portfolios.
 
-Contracts are total functions over exact integers. Accounting identities and risk
-bounds are *theorems*, proved by the Lean 4 kernel for every loss from 0 to ∞ and
-every FX rate in range. No Mathlib, no `Float`, no `sorry`.
+Contracts are total functions over exact integers. Every accounting identity and
+risk bound is a theorem proved by the Lean 4 kernel — for every loss, every FX
+rate, and every retrocession tower depth. No Mathlib, no `Float`, no `sorry`.
 
-**v0.2** turns the v0.1 case study into a data-driven engine: a general bound
-contract schema with four composable forms, an induction proof over retrocession
-towers of arbitrary depth, a static loophole scanner with five structural
-classes, a JSON ingestion pipeline, and a three-mode CLI.
+**v0.3** closes the loop from paper to balance sheet:
+
+```
+PDF/MRC slip ──► Python extractor ──► Lean gatekeeper ──► static scanner ──► multi-event simulator
+   (.pdf)          (stdlib only)        (isValid)         (5 loophole classes)   (FX + cat season)
+```
+
+A broker's slip is parsed, admitted or rejected by the same `isValid` predicate
+the theorems consume, scanned for structural flaws, and then stressed through a
+catastrophe season. The browser never computes a number; it renders what the
+compiled Lean binary returned.
 
 ```bash
-lake build                                  # ~7s from clean, zero dependencies
-lake exe cockpit                            # full report
+lake build                 # ~10s from clean, zero dependencies
+python3 server/app.py      # → http://localhost:8080
+python3 scripts/test_e2e.py
+```
+
+---
+
+## Quickstart
+
+```bash
+# 1. build the kernel-checked engine
+lake build
+
+# 2. build the sample PDF slips (pure Python, no pip installs)
+python3 scripts/generate_sample_pdfs.py
+
+# 3. run the cockpit
+python3 server/app.py            # PORT=8080 by default
+# → open http://localhost:8080
+```
+
+CLI, unchanged from v0.2 plus two new modes:
+
+```bash
+lake exe cockpit
 lake exe cockpit audit examples/continental_re_portfolio.json
 lake exe cockpit audit examples/continental_re_portfolio.json --json
+lake exe cockpit simulate examples/continental_re_portfolio.json \
+                          examples/scenarios/global_twin_cat_fx_shock.json [--json]
+lake exe cockpit theorems [--json]
 ```
 
 ---
 
-## What is actually proved
+## The pipeline, step by step
 
-### v0.1 — layer arithmetic
+**1. Extract.** `server/slip_parser.py` reads a PDF (or `.txt`) and pulls the
+labelled MRC fields out of the `BT … ET` text blocks, decompressing Flate streams
+when present. It is not a general PDF reader; it reads the one thing a slip
+contains and reports what it could not find instead of guessing.
+
+**2. Admit.** `ReinsuranceLeanCockpit/Validation.lean` is the gate. A contract
+with `shareBps = 11500` is not merely implausible — it falls outside
+`evalContractPayout_le_loss`, whose hypothesis is `c.isValid = true`. The gate
+returns exactly the blocking errors, and
+
+```lean
+theorem validateContract_isEmpty_iff (c : BoundContract) :
+    (validateContract c).isEmpty = c.isValid
+```
+
+guarantees the gate and the theorem precondition are the same predicate, not two
+implementations that happen to agree today.
+
+**3. Scan.** `Diagnostics.lean` reports five structural classes: vertical tower
+gaps, tower overlaps, currency basis mismatch, aggregate exhaustion, and
+counterparty credit cliffs. Only *adjacent* layers are compared, so a layer that
+fills a gap suppresses the false positive.
+
+**4. Simulate.** `Simulation.lean` prices a season: each event is converted into
+every inward contract's currency, priced, converted back to EUR, and passed down
+the outward tower in inuring order. Stop losses then apply to the season total.
+
+---
+
+## What is proved
+
+44 theorems, all `sorry`-free. The core of the portfolio argument:
 
 | Theorem | Statement |
 |---|---|
-| `xolPayout_le_loss` | a layer never pays more than the loss |
-| `xolPayout_bounded` | never more than the occurrence limit or the remaining aggregate |
-| `xol_loss_conservation` | net retained + ceded = gross, for every loss |
-| `qsPayout_le_loss` | a quota share with `share ≤ 100%` never pays more than the loss |
-| `stepXoLTreaty_agg_safe` | one treaty step partitions available aggregate capacity exactly |
-| `alpine_safe_at_inception_fx` | the naive Alpine structure is safe at 0.80 EUR/USD for every loss |
-| `alpine_fixed_fx_safe` | the currency-matched structure stays under €25M for every loss and every FX ≤ 1.00 |
+| `evalContractPayout_le_loss` | every valid contract, of any of the four forms, pays at most the loss |
+| `applyInuringTower_conservation` | **by induction:** net retained + total recovered = gross, for a tower of any depth |
+| `applyInuringTower_recovered_le` | **by induction:** total recoveries never exceed the gross loss |
+| `applyInuringTower_net_le` | net retained never exceeds the gross loss |
+| `xolPayout_le_loss` / `xolPayout_bounded` | a layer never pays more than the loss or its limits |
+| `xol_loss_conservation` | net + ceded = gross for one layer |
+| `qsPayout_le_loss` | quota share bounded when the share is at most 100% |
+| `surplusPayout_le_loss` / `stopLossPayout_le_loss` | the two added forms are bounded |
+| `stepXoLTreaty_agg_safe` | one treaty step partitions aggregate capacity exactly |
+| `alpine_safe_at_inception_fx` / `alpine_fixed_fx_safe` | the FX case study, for every loss and every rate |
+| `isPortfolioValid_forall` | **the gate implies the theorem precondition, for every contract in a portfolio** |
+| `validateContract_isEmpty_iff` | the gate's error list is empty exactly when the contract is valid |
+| `portfolioStress_totalScr` | the printed SCR total equals its components |
+| `scenarioReport_scr_sum` | the simulator's SCR total equals its four components |
+| `netAfterStopLoss_conservation` | the stop loss moves money, it does not make it |
+| `tally_sum` / `auditPortfolio_counts_sum` | severity counts partition the findings |
+| `solvencyRatioPct_mono_ownFunds` | adding capital never lowers the ratio |
 
-### v0.2 — general contracts and inductive towers
+`scripts/AxiomAudit.lean` runs `#print axioms` over the headline set; nothing
+depends on `sorryAx`, and the strongest entries rest on `propext` and
+`Quot.sound` alone.
 
-| Theorem | Statement |
+---
+
+## The web cockpit
+
+Five panels, vanilla HTML/CSS/JS, no framework and no build step:
+
+1. **Header + portfolio bar** — live theorem count fetched from
+   `GET /api/theorems`, kernel latency per request, and a preset switcher
+   (as-bound 94% breach vs restructured 168% solvent).
+2. **Solvency gauge** — SVG semicircle, stacked SCR bar, KPI strip including the
+   gatekeeper verdict.
+3. **Tower visualiser** — per-peril tabs, inward layers against the outward
+   tower, scaled by attachment and limit, with unhedged gaps drawn as striped
+   red blocks and BBB/Unrated layers badged.
+4. **Slip validator** — drag-and-drop or three one-click demo PDFs. Binding the
+   gap-closer removes the red block; the Cayman slip adds a credit cliff; the
+   115% quota share is rejected with the failing bound quoted.
+5. **Simulator + proof registry** — editable FX rates and event list, a live
+   `POST /api/simulate`, and the collapsible table of all 44 theorems.
+
+### API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/health` | liveness + whether the Lean binary is present |
+| GET | `/api/theorems` | kernel proof registry |
+| GET | `/api/presets` | portfolios, default scenario, sample slips |
+| POST | `/api/audit` | run `cockpit audit --json` on a posted portfolio |
+| POST | `/api/simulate` | run `cockpit simulate --json` |
+| POST | `/api/parse-slip` | parse a PDF/base64 slip, optionally bind + re-audit |
+| GET | `/api/slips/<name>` | serve the raw PDF |
+
+Every POST writes to a `tempfile`, invokes the binary with a 10 s timeout,
+deletes the temp file, and returns the Lean JSON plus `leanExecMs`.
+
+---
+
+## Sample PDF slips
+
+Generated by `scripts/generate_sample_pdfs.py`, a pure-stdlib PDF 1.4 writer
+with a correct `xref` table:
+
+| Slip | What it proves |
 |---|---|
-| `surplusPayout_le_loss` | a surplus share never pays more than the loss |
-| `stopLossPayout_le_loss` | an aggregate stop loss never pays more than the annual loss |
-| `evalContractPayout_le_loss` | **for every valid contract — any of the four forms — payout ≤ loss** |
-| `applyInuringTower_conservation` | **by induction: net retained + total recovered = gross, for a tower of any depth** |
-| `applyInuringTower_recovered_le` | **by induction: total recovered ≤ gross, however many contracts are bound** |
-| `applyInuringTower_net_le` | net retained ≤ gross, as a corollary |
-| `portfolioStress_totalScr` | the printed SCR total equals its four printed components |
-| `portfolioStress_isSolvent_iff` | the solvency flag is exactly "ratio ≥ 100%" |
-| `tally_sum` | the three severity counts partition the finding list |
-| `surplusPayout_mono`, `surplusPayout_zero_below`, `stopLossPayout_zero_below` | shape of the two new forms |
+| `SLIP_01_Valid_Gap_Closer_USD.pdf` | 10M USD xs 20M closes the vertical gap between Layer 1 (ends 20M) and Layer 2 (attaches 30M). Findings fall; the gap disappears. |
+| `SLIP_02_Trap_Unrated_FX_Mismatch.pdf` | Unrated Cayman cell, EUR-denominated against JPY inward business. Adds a `CounterpartyCreditCliff` and leaves the currency mismatch standing. |
+| `SLIP_03_Illegal_115pct_QuotaShare.pdf` | `Share_Bps: 11500`. The gate rejects it and names the violated bound. |
 
-`scripts/AxiomAudit.lean` runs `#print axioms` on all 26 theorems. None depends on
-anything beyond `propext`, `Classical.choice` and `Quot.sound`; there is no
-`sorryAx` anywhere, and `grep -rn sorry --include='*.lean'` returns nothing.
-
-The two tower theorems are the point of the release. They are proved by structural
-recursion on the contract list, not by a bounded loop or a decision procedure, so
-they hold for *n* contracts for arbitrary *n* — including a tower with a gap, a
-duplicate layer or an unrated counterparty, where the theorem still says the
-accounting adds up even though the risk does not.
+`server/slip_parser.py` round-trips all three back into the exact JSON schema
+`Ingestion.lean` expects.
 
 ---
 
-## The four contract forms
+## End-to-end test
 
-| Form | Payout on a loss | Params |
-|---|---|---|
-| **XoL** | `min (min (loss − attachment) occLimit) (min remAgg aggLimit)` | attachment, occLimit, aggLimit, reinstRateBps, basePremium |
-| **Quota share** | `min (loss × shareBps / 10000) eventCap` | shareBps, eventCap, commissionBps |
-| **Surplus share** | `min (min (loss − retentionLine) (numLines × retentionLine)) eventCap` | retentionLine, numLines, eventCap |
-| **Aggregate stop loss** | `min (annualNetLoss − aggAttachment) aggLimit` | aggAttachment, aggLimit |
-
-Notes on the modelling choices, because they are choices:
-
-* **Surplus share is written in amount terms.** It cedes the layer
-  `numLines × retentionLine xs retentionLine` — the standard amount view of a
-  surplus treaty. The proportional view `numLines/(numLines+1)` is what this layer
-  converges to once the loss exhausts the capacity. The amount form avoids a
-  division that would make `payout ≤ loss` depend on rounding.
-* **Reinstatements are inferred from the rate.** `ContractKind` carries
-  `reinstRateBps` but no count, so a zero rate means no reinstatement was
-  purchased. The diagnostics module reads it that way.
-* **Validity gates the theorems, not the functions.** `evalContractPayout` is total
-  for every contract; `isValid` supplies the `shareBps ≤ 10000` hypothesis that
-  the quota-share bound needs.
-
----
-
-## The static scanner
-
-Five structural anomalies, each a pure function of the portfolio. Run twice, the
-report is identical.
-
-| Finding | Rule | Severity |
-|---|---|---|
-| `VerticalTowerGap` | two *adjacent* outward XoL layers, same peril/currency/priority, `lower.attachment + lower.occLimit < upper.attachment` | CRITICAL |
-| `VerticalTowerOverlap` | same, but `upper.attachment < lower.attachment + lower.occLimit` | WARNING |
-| `CurrencyBasisMismatch` | a peril written inward in a currency that no outward cover for that peril uses | CRITICAL |
-| `AggregateExhaustionMismatch` | inward aggregate − outward aggregate > 2 × single-event appetite, **or** inward reinstates onto outward that does not | CRITICAL / WARNING |
-| `CounterpartyCreditCliff` | outward recoverable with a `BBB` or `Unrated` counterparty, with the default charge quantified | WARNING / CRITICAL |
-
-Only *adjacent* layers are compared. Reporting `Layer 1 → Layer 3` as a gap when
-`Layer 2` fills the space is the false positive that would discredit every other
-finding in the report; `hasIntermediate` suppresses it.
-
----
-
-## Sample audit: `examples/continental_re_portfolio.json`
-
-```text
-==================================================================
-  PORTFOLIO AUDIT: Continental Re
-  10 bound contracts | 7 findings (6 CRITICAL, 1 WARNING, 0 INFO)
-==================================================================
-
-EXPOSURE BY CURRENCY (EUR, single-event limits)
-  segment      inward      outward     net unhedged
-  EUR          €23.0M       €12.0M       €11.0M
-  USD          €73.6M       €36.8M       €36.8M
-  GBP          €0.0M        €0.0M        €0.0M
-  JPY          €120.0M      €0.0M        €120.0M
-
-EXPOSURE BY PERIL (EUR, single-event limits)
-  segment      inward      outward     net unhedged
-  Windstorm    €73.6M       €36.8M       €36.8M
-  Earthquake   €120.0M      €12.0M       €108.0M
-  Flood        €8.0M        €0.0M        €8.0M
-  Cyber        €15.0M       €0.0M        €15.0M
-
-------------------------------------------------------------------
-STRUCTURAL LOOPHOLES
-------------------------------------------------------------------
-  [CRITICAL] VerticalTowerGap  (€9.2M)
-      CNT-WS-L1 ends at €20.0M but CNT-WS-L2 attaches at €30.0M: unhedged vertical gap
-  [CRITICAL] CurrencyBasisMismatch  (€120.0M)
-      Earthquake is written in JPY but retroceded in EUR; €120.0M of single-event inward cover is untranslated
-  [CRITICAL] AggregateExhaustionMismatch  (€66.6M)
-      Windstorm: inward aggregate €147.2M vs outward €80.6M; uncovered €66.6M (appetite cap €80.0M)
-  [CRITICAL] AggregateExhaustionMismatch  (€108.0M)
-      Earthquake: inward aggregate €120.0M vs outward €12.0M; uncovered €108.0M (appetite cap €80.0M)
-  [CRITICAL] AggregateExhaustionMismatch  (€16.0M)
-      Flood: €16.0M of inward aggregate sits on a layer with no reinstating outward cover (appetite cap €80.0M)
-  [CRITICAL] CounterpartyCreditCliff  (€5.7M)
-      CNT-WS-L2 placed with Bermuda Cell 42 (Unrated); recoverable €23.0M carries a 2500 bps default charge
-  [WARNING] CounterpartyCreditCliff  (€2.4M)
-      CNT-FL-SL placed with Atlas Re (BBB); recoverable €30.0M carries a 800 bps default charge
-
-------------------------------------------------------------------
-SOLVENCY II STRESS
-------------------------------------------------------------------
-  Scenario:          Static stress: max unhedged single-event exposure, full reinstatement drag
-  Net Cat Loss:      €108.0M
-  Reinstatement Fee: €0.0M
-  Counterparty SCR:  €8.9M
-  Other SCR:         €10.0M
-  Total SCR:         €126.9M (Own Funds: €120.0M)
-  Solvency II Ratio: 94% -> REGULATORY BREACH (<100%)
-==================================================================
+```bash
+python3 scripts/test_e2e.py
 ```
 
-The same portfolio after restructuring (`examples/continental_re_fixed.json`):
-**0 findings**, Solvency II ratio **168%**, 12 contracts — the three extra contracts
-are a closing Layer 3, a JPY-matched earthquake retro and a reinstating flood layer.
-
-| | As bound | Restructured |
-|---|---|---|
-| Findings | 7 (6 CRITICAL, 1 WARNING) | 0 |
-| Solvency II ratio | 94% — breach | 168% |
-| Unhedged JPY single-event exposure | €120.0M | €0.0M |
-
----
-
-## JSON pipeline
-
-Input is a portfolio document; output is the full verified audit report.
-
-```json
-{
-  "name": "Continental Re",
-  "ownFundsEur": 120000000,
-  "otherScrEur": 10000000,
-  "maxSingleEventAppetiteEur": 40000000,
-  "fxRatesToEurCents": [
-    { "currency": "EUR", "cents": 100 },
-    { "currency": "USD", "cents": 92 }
-  ],
-  "contracts": [
-    {
-      "id": "CNT-WS-L1",
-      "name": "Outward US Windstorm Layer 1: 15M xs 5M",
-      "counterparty": "Northwind Re",
-      "rating": "AA",
-      "direction": "outward",
-      "currency": "USD",
-      "perils": ["Windstorm"],
-      "inuringPriority": 10,
-      "kind": {
-        "type": "xol",
-        "attachment": 5000000,
-        "occLimit": 15000000,
-        "aggLimit": 30000000,
-        "reinstRateBps": 0,
-        "basePremium": 1500000
-      }
-    }
-  ]
-}
-```
-
-`--json` emits the same report as compact JSON (`portfolio`, `contractCount`,
-`exposureByCurrency`, `exposureByPeril`, `findings`, `stress`, and the four
-counts), ready for a web or PDF pipeline. Malformed input fails with the field
-name, not a positional mismatch.
-
-### Units
-
-Money is `Nat` at a fixed minor-unit scale; the formatter divides by 10⁶, so
-`120000000` prints as `€120.0M`. FX entries are integer rates in hundredths —
-`100` is parity, `USD 92` is a 0.92 quote — and conversion is
-`amount * rate / 100`, rounding down. Shares and rates are basis points
-(`10000 = 100.00%`). Nothing is ever a `Float`.
-
----
-
-## Architecture
-
-| File | Contents |
-|---|---|
-| `ReinsuranceLeanCockpit/Core.lean` | v0.1: currencies, perils, `xolPayout`, `qsPayout`, stateful treaty with aggregate erosion |
-| `ReinsuranceLeanCockpit/Solvency.lean` | v0.1: deterministic SCR build-up and ratio engine |
-| `ReinsuranceLeanCockpit/AlpineShowcase.lean` | v0.1: the Alpine Re FX cliff and its verified fix |
-| `ReinsuranceLeanCockpit/Contracts.lean` | **v0.2:** `CreditRating`, `Direction`, `ContractKind`, `BoundContract`, `evalContractPayout`, `applyInuringTower` and the inductive tower proofs |
-| `ReinsuranceLeanCockpit/Diagnostics.lean` | **v0.2:** exposure matrix, five-class scanner, extended Solvency II with counterparty default SCR |
-| `ReinsuranceLeanCockpit/Ingestion.lean` | **v0.2:** `ToJson`/`FromJson` for every type, file loader, compact report emitter |
-| `Main.lean` | three-mode CLI |
-| `scripts/AxiomAudit.lean` | `#print axioms` for all 26 theorems |
-| `examples/` | Continental Re portfolio (7 findings) and the restructured twin (0 findings) |
+Starts the real handler on an ephemeral port and asserts: health, ≥32 theorems,
+presets, 94%/breach and 168%/0-findings audits, all three slips (gap closure,
+new credit cliff, gatekeeper rejection), simulation conservation
+(`netBefore + recovered == gross`), and `application/pdf` delivery.
 
 ---
 
 ## Deliberate simplifications
 
-Stated, not buried, because a verification claim is only as good as its scope:
+* The SCR is a deterministic stress build-up, not the Standard Formula.
+* The simulated stress loss is the book's own maximum unhedged single-event
+  exposure; it is not a return-period loss.
+* Counterparty charges apply to full outward aggregate capacity, undiscounted.
+* FX is one rate per currency per request; no volatility, no basis, no hedge.
+* Perils gate applicability by membership; event-window aggregation from the
+  v0.1 hours clause is not yet wired into `BoundContract`.
+* The PDF extractor handles simple text-layer PDFs, not scanned images or
+  complex encodings.
 
-* The SCR is a deterministic stress build-up — net cat loss + reinstatement drag +
-  baseline non-cat + counterparty default — not the Solvency II Standard Formula.
-  Correlations, operational risk and the full premium/reserve modules are absent.
-* The stress loss is the portfolio's own maximum unhedged single-event exposure.
-  That makes the scenario reproducible and impossible to drift from the book, but
-  it is not a return-period loss.
-* Counterparty default charges are applied to full outward aggregate capacity, not
-  to a discounted expected recoverable.
-* FX is one rate per currency per portfolio: no volatility, no basis between
-  fixing dates, no hedging programme.
-* Perils gate applicability by membership; they carry no severity distribution and
-  no event-window aggregation (the v0.1 hours-clause machinery is not yet wired
-  into `BoundContract`).
-* Per-risk XoL is not split-proof: two losses can recover more than one combined
-  loss of the same size. That hazard is a property of the form, not a bug in the
-  model, and is documented in the v0.1 `AlpineShowcase` reasoning.
-
----
-
-## Verification status
+## Repository layout
 
 ```text
-$ lake build
-Build completed successfully (19 jobs).        # 0 errors, 0 warnings
-
-$ lake env lean scripts/AxiomAudit.lean
-26 theorems; axioms ⊆ {propext, Classical.choice, Quot.sound}
-
-$ grep -rn "sorry" --include='*.lean' .
-(no matches)
+ReinsuranceLeanCockpit/
+  Core.lean  Solvency.lean  AlpineShowcase.lean      # v0.1
+  Contracts.lean  Diagnostics.lean                   # v0.2
+  Validation.lean  Simulation.lean  Ingestion.lean   # v0.3
+Main.lean
+server/app.py  server/slip_parser.py
+web/index.html  web/styles.css  web/app.js
+scripts/generate_sample_pdfs.py  scripts/test_e2e.py  scripts/AxiomAudit.lean
+examples/continental_re_portfolio.json  examples/continental_re_fixed.json
+examples/scenarios/global_twin_cat_fx_shock.json
+examples/slips/*.pdf  examples/slips/*.txt
 ```
-
-## Roadmap
-
-* **Phase 3 —** multi-currency aggregate tracking per currency (not just EUR),
-  FX correlation stress grids, event-window aggregation wired into the contract
-  schema, and a full Standard Formula counterparty module.
-* **Phase 4 —** PDF/JSON bound-contract ingestion into the verified core, a web
-  front end over the same theorems, and signed audit reports.
 
 ## License
 
