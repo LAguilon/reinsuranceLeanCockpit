@@ -369,10 +369,25 @@ def slip_list() -> list[dict]:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "ReinsuranceLeanCockpit/0.4"
+    server_version = "ReinsuranceLeanCockpit/1.0.0"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB), **kwargs)
+
+    # -- hardening -------------------------------------------------------
+    def send_response(self, code, message=None):
+        super().send_response(code, message)
+        # Browsers must never serve a stale cockpit after a deploy.
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+
+    def translate_path(self, path):
+        resolved = Path(super().translate_path(path)).resolve()
+        root = WEB.resolve()
+        if resolved != root and root not in resolved.parents:
+            return str(root / "__not_found__")
+        return str(resolved)
 
     # -- helpers ---------------------------------------------------------
     def send_json(self, payload: dict, status: int = 200) -> None:
@@ -569,12 +584,13 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8080"))
     if not WEB.exists():
         raise SystemExit(f"web directory missing: {WEB}")
     ensure_binary()
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"ReinsuranceLean Cockpit v0.4 on http://localhost:{port}")
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"ReinsuranceLean Cockpit v1.0.0 on http://{host}:{port}")
     print(f"Lean binary: {LEAN_BIN} ({'found' if lean_available() else 'MISSING — run lake build'})")
     try:
         server.serve_forever()

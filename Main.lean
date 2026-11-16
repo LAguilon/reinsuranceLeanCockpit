@@ -74,7 +74,7 @@ def auditFile (path : String) (asJson : Bool) : IO Unit := do
 
 def printAlpineReport : IO Unit := do
   IO.println "=================================================================="
-  IO.println "   REINSURANCE LEAN COCKPIT v0.4 - FORMAL PORTFOLIO AUDITOR"
+  IO.println "   REINSURANCE LEAN COCKPIT v1.0.0 - FORMAL PORTFOLIO AUDITOR"
   IO.println "=================================================================="
   IO.println ""
   IO.println "[VERIFIED] Compile-time Lean 4 Theorems Checked:"

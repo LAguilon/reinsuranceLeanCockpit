@@ -1,10 +1,104 @@
 # reinsuranceLeanCockpit
 
-Formal verification and risk intelligence for **bound** reinsurance portfolios.
+**v1.0.0** — a show-ready MVP for agentic AI plus Lean 4 formal verification in
+reinsurance accounting. Two audiences, one engine: US facultative technical
+accountants who need the number to be right, and group executives who need to
+see the capital it protects.
 
-Contracts are total functions over exact integers. Every accounting identity and
-risk bound is a theorem proved by the Lean 4 kernel — for every loss, every FX
-rate, and every retrocession tower depth. No Mathlib, no `Float`, no `sorry`.
+```bash
+lake build && python3 server/app.py     # → http://localhost:8080
+```
+
+---
+
+## What the desk does, in numbers
+
+Six Q3 cash calls from a real-shaped US facultative book, audited by the
+compiled Lean binary:
+
+| | Amount |
+|---|---|
+| Cedent billed | **$3,610,000** |
+| Cash verified payable | **$2,630,000** |
+| **Leakage prevented** | **$980,000** across four disputes |
+| Unpaid net premium offset | **$51,000** |
+| Net wire authorised | **$2,579,000** |
+| Verified ending OSLR / IFRS 17 LIC | **$280,000** |
+| Ruschlikon STP auto-agreed | **1 of 6 (16%)** |
+
+The four disputes are the four failure modes that actually happen:
+
+* **Defence cannot pierce an attachment.** $450,000 of indemnity against a
+  $500,000 attachment means no ceded indemnity and therefore no pro-rata ALAE —
+  yet the cedent billed $130,000.
+* **Defence inside limits caps the layer.** A $22M D&O loss is capped at the
+  $10M limit; 20% of that is $2,000,000, not 20% of the pre-cap total. Billed
+  $2,400,000.
+* **Prior paid is cumulative.** Billing the full $350,000 layer position without
+  deducting $200,000 already settled.
+* **A case reserve is not cash.** Paid indemnity of $400,000 is still below the
+  attachment, so the $280,000 incurred position is a **reserve to book**, not a
+  wire. The cedent asked for $250,000 in cash.
+
+## Paid vs. incurred, and why the distinction is the product
+
+A claim has cash paid *and* an outstanding case reserve. The layer responds to
+incurred; only paid losses can be wired. The cockpit books both:
+
+```
+verifiedEndingOslr = max(incurred, paid) − paid
+grossCashPayable   = paid − priorPaid
+premiumOffset      = min(grossCashPayable, unpaidNetPremium)
+netWire            = grossCashPayable − premiumOffset
+```
+
+and proves `paid + endingOslr = incurred` and that the two-leg voucher balances
+(`fullFacVoucher_balanced`) for every certificate, claim and offset.
+
+## ACORD GRLC / Ruschlikon STP
+
+`Acord.lean` classifies every audit as `AGD`, `AGD_OFFSET`, `QRY` or `REJ`, and
+proves the guardrail:
+
+```lean
+theorem stpAutoAgreed_implies_valid_and_zero_overbill :
+  classifyRuschlikonStp cert res = .STP_AUTO_AGREED →
+    cert.isValid = true ∧ res.overbilledUsd = 0 ∧ res.underbilledUsd = 0
+```
+
+An overbilled claim can never auto-approve. `server/acord_adapter.py` parses
+ECOT XML/JSON (rejecting `DOCTYPE`/`ENTITY` outright) and emits an EBOT
+`ClaimMovementResponse` with both ledger legs and the Lean certificate metadata.
+
+## Clause-to-Lean intake
+
+Drop a PDF, an ACORD message, or paste a broker email. The intake engine returns
+three things side by side: the extracted text, the **exact compilable Lean 4
+definitions**, and the plain-English back-translation of what was verified —
+plus warnings for clauses the model cannot represent (punitive damages, hammer,
+consent to settle, PFAS, subrogation, and eight more). An optional
+`OPENAI_API_KEY` pass can annotate extraction; Lean still performs every
+validation and calculation.
+
+## Group executive bridge
+
+The desk works in dollars; the group works in euros. `GroupBridge.lean` detects
+multi-line casualty clashes (the sample book has a Workers' Comp + General
+Liability pileup at $550,000 against a $300,000 threshold), rolls the desk into
+EUR, and proves that leakage prevention can only raise the group ratio
+(`groupView_protectedRatio_ge`).
+
+## Trust, deployment, documentation
+
+* **92 kernel-checked theorems**, 13 named specifications in a tactic-free
+  `TrustBoundary.lean`, zero `sorry`, zero `native_decide`, no custom axioms.
+* **Deployment**: multi-stage `Dockerfile` that runs the paranoid audit during
+  the image build, `render.yaml` for one-click Render, and
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Fly.io, Railway and a VPS.
+* **Manual**: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — plain English, no Lean.
+* **In-app tour**: `▶ 60s Guided Demo Tour` in the header, five steps.
+
+---
 
 **v0.5 adds a US facultative casualty accounting desk**: four bound certificates
 (AL, GL, WCA, D&O) audited against four Q3 cedent cash calls, **$730,000 of
@@ -259,7 +353,7 @@ the outward tower in inuring order. Stop losses then apply to the season total.
 
 ## What is proved
 
-76 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
+92 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
 
 | Theorem | Statement |
 |---|---|
@@ -309,7 +403,7 @@ Five panels, vanilla HTML/CSS/JS, no framework and no build step:
    gap-closer removes the red block; the Cayman slip adds a credit cliff; the
    115% quota share is rejected with the failing bound quoted.
 5. **Simulator + proof registry** — editable FX rates and event list, a live
-   `POST /api/simulate`, and the collapsible table of all 76 theorems.
+   `POST /api/simulate`, and the collapsible table of all 92 theorems.
 
 ### API
 

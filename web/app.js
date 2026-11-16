@@ -619,6 +619,82 @@ function renderTrust() {
   ).join("");
 }
 
+
+/* ---------- 60-second guided tour ---------- */
+const TOUR_STEPS = [
+  {
+    view: "fac",
+    target: "#facRibbon",
+    title: "This is the money you are not losing",
+    body: "Six numbers, all produced by a compiled Lean 4 program: leakage caught, Ruschlikon straight-through rate, premium offset recovered, exact case reserves, the group euro impact, and clash alerts. Nothing here is a language model's guess.",
+  },
+  {
+    view: "fac",
+    target: "#facCases",
+    title: "Six real cash calls, four of them wrong",
+    body: "Auto Liability billed for a layer that owes nothing. D&O capped by defence-inside-limits. Workers' Comp billed cumulatively. A premature OSLR cash call. Each verdict cites the clause that decided it.",
+  },
+  {
+    view: "fac",
+    target: "#facJournal",
+    title: "Every dollar is double-entered",
+    body: "Leg A settles cash: paid claims against premium offset and the wire. Leg B moves the case reserve. The kernel proves debits equal credits for every claim — fullFacVoucher_balanced.",
+  },
+  {
+    view: "fac",
+    target: ".three-way",
+    title: "Paper in, proof out",
+    body: "Drop a PDF, an ACORD message or a broker email. You get the raw text, the exact compilable Lean 4 definitions, and what Lean actually verified in English — plus warnings for clauses the model cannot represent.",
+  },
+  {
+    view: "group",
+    target: "#clashList",
+    title: "The same explosion, two lines, one limit",
+    body: "Workers' Comp and General Liability both respond to EVENT-MIDWEST-PILEUP. Booked separately they look small; together they breach the clash threshold. The group view rolls the desk into euros and shows the capital the desk protected.",
+  },
+];
+
+let tourIndex = 0;
+
+function showTourStep(i) {
+  const step = TOUR_STEPS[i];
+  showView(step.view);
+  document.querySelectorAll(".tour-highlight").forEach((el) => el.classList.remove("tour-highlight"));
+  const target = document.querySelector(step.target);
+  if (target) {
+    target.classList.add("tour-highlight");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  $("#tourStep").textContent = `Step ${i + 1} of ${TOUR_STEPS.length}`;
+  $("#tourTitle").textContent = step.title;
+  $("#tourBody").textContent = step.body;
+  $("#tourNext").textContent = i === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+  $("#tourOverlay").hidden = false;
+}
+
+function startTour() {
+  tourIndex = 0;
+  showTourStep(0);
+}
+
+function endTour() {
+  $("#tourOverlay").hidden = true;
+  document.querySelectorAll(".tour-highlight").forEach((el) => el.classList.remove("tour-highlight"));
+}
+
+function setupTour() {
+  $("#tourBtn").addEventListener("click", startTour);
+  $("#tourSkip").addEventListener("click", endTour);
+  $("#tourNext").addEventListener("click", () => {
+    if (tourIndex >= TOUR_STEPS.length - 1) return endTour();
+    tourIndex += 1;
+    showTourStep(tourIndex);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") endTour();
+  });
+}
+
 /* ---------- bootstrap ---------- */
 async function init() {
   try {
@@ -643,6 +719,7 @@ async function init() {
     renderTabs();
     setupSlipUI();
     setupFacUI();
+    setupTour();
 
     $("#portfolioSelect").addEventListener("change", (e) => selectPreset(e.target.value));
     $("#resetBtn").addEventListener("click", resetPortfolio);
@@ -684,9 +761,67 @@ function showView(name) {
     v.hidden = v.id !== `view-${name}`;
   });
   if (name === "fac" && !state.fac.loaded) loadFac();
+  if (name === "group" && !state.fac.execu) loadExecutive();
+}
+
+function renderRibbon(report, execu) {
+  const results = report.results || [];
+  const agd = results.filter((r) => r.acordResponseCode === "AGD").length;
+  const rate = results.length ? Math.round((agd * 100) / results.length) : 0;
+  $("#ribLeakage").textContent = usd(report.totalOverbilledUsd);
+  $("#ribStp").textContent = `${rate}% (${agd}/${results.length})`;
+  $("#ribOffset").textContent = usd(report.totalPremiumOffsetUsd);
+  $("#ribOslr").textContent = usd(report.totalEndingOslrUsd);
+  if (execu) {
+    $("#ribEur").textContent = `€${(execu.group.rollup.totalLeakagePreventedEur / 1e6).toFixed(1)}M`;
+    const hot = execu.group.clashes.filter((c) => c.exceedsThreshold).length;
+    $("#ribClash").textContent = hot > 0 ? `${hot} alert${hot > 1 ? "s" : ""}` : "none";
+    $("#ribClash").className = hot > 0 ? "danger" : "ok";
+  }
+}
+
+function renderGroup(execu) {
+  const g = execu.group;
+  const r = g.rollup;
+  $("#gClaims").textContent = r.totalClaimsCount;
+  $("#gCash").textContent = `€${(r.totalGrossCashVerifiedEur / 1e6).toFixed(1)}M`;
+  $("#gLeakage").textContent = `€${(r.totalLeakagePreventedEur / 1e6).toFixed(1)}M`;
+  $("#gOslr").textContent = `€${(r.totalEndingOslrBookedEur / 1e6).toFixed(1)}M`;
+  $("#gRatio").textContent = `${g.ratioPct}%`;
+  $("#gProtected").textContent = `${g.protectedRatioPct}%`;
+
+  $("#clashList").innerHTML = g.clashes.length
+    ? g.clashes
+        .map(
+          (c) => `<div class="clash ${c.exceedsThreshold ? "hot" : ""}">
+            <div class="clash-head"><b>${c.kind}</b><span>${c.key}</span>
+              <span class="amt">${usd(c.combinedIncurredUsd)}</span></div>
+            <div class="clash-lines">${c.lines.join(" + ")} · ${c.certIds.join(", ")}</div>
+            <div class="clash-verdict">${c.exceedsThreshold ? "EXCEEDS" : "within"} threshold ${usd(c.thresholdUsd)}</div>
+          </div>`
+        )
+        .join("")
+    : `<div class="muted">No clashes detected.</div>`;
+
+  const rows = [
+    ["Cedent billed", usd(r.totalCedentBilledUsd)],
+    ["Cash verified", usd(r.totalGrossCashVerifiedUsd)],
+    ["Leakage prevented", usd(r.totalLeakagePreventedUsd)],
+    ["Premium offset recovered", usd(r.totalPremiumOffsetRecoveredUsd)],
+    ["Net wire", usd(r.totalNetWireUsd)],
+    ["Ending OSLR booked", usd(r.totalEndingOslrBookedUsd)],
+    ["Incurred booked", usd(r.totalIncurredBookedUsd)],
+    ["STP auto-agreed", `${r.stpAutoAgreedCount} of ${r.totalClaimsCount} (${r.stpRatePct}%)`],
+    ["Group ratio before protection", `${g.ratioPct}%`],
+    ["Group ratio after protection", `${g.protectedRatioPct}%`],
+  ];
+  $("#rollupTable tbody").innerHTML = rows
+    .map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`)
+    .join("");
 }
 
 function renderFacSummary(report) {
+  renderRibbon(report, state.fac.execu);
   $("#facBilledTotal").textContent = usd(report.totalBilledUsd);
   $("#facVerifiedTotal").textContent = usd(report.totalVerifiedUsd);
   $("#facOverTotal").textContent = usd(report.totalOverbilledUsd);
@@ -694,13 +829,21 @@ function renderFacSummary(report) {
 }
 
 function renderFacCases(cases, bundle) {
+  const codes = {};
+  ((state.fac.report && state.fac.report.results) || []).forEach((r) => {
+    codes[r.certId] = r.acordResponseCode;
+  });
   $("#facCases").innerHTML = cases
     .map((c) => {
       const pdf = c.pdfUrl
         ? `<a class="pdf-link" href="${c.pdfUrl}" target="_blank" rel="noopener">View Cash-Call PDF</a>`
         : "";
+      const code = codes[c.certId] || "";
+      const badge = code
+        ? `<span class="stp-badge ${code === "AGD" ? "ok" : code === "AGD_OFFSET" ? "offset" : "query"}">${code}</span>`
+        : "";
       return `<button class="case-chip" data-cert="${c.certId}">
-        <span class="case-line">${c.line}</span>
+        <span class="case-line">${c.line} ${badge}</span>
         <span class="case-limit">${c.limitLabel}</span>
         <span class="case-insured">${c.insured}</span>
         <span class="case-clause">${c.alaeLabel}</span>
@@ -925,10 +1068,22 @@ function loadIntakeIntoCalculator() {
   runFacAudit();
 }
 
+async function loadExecutive() {
+  try {
+    const execu = await api("/api/executive-summary", { method: "POST", body: "{}" });
+    state.fac.execu = execu;
+    renderGroup(execu);
+    if (state.fac.report) renderRibbon(state.fac.report, execu);
+  } catch (err) {
+    $("#clashList").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
+  }
+}
+
 async function loadFac() {
   try {
     const data = await api("/api/fac-presets");
     state.fac.presets = data;
+    state.fac.report = data.report;
     state.fac.bundle = data.bundle;
     state.fac.cases = data.cases;
     state.fac.loaded = true;
@@ -936,6 +1091,7 @@ async function loadFac() {
     renderFacCases(data.cases, data.bundle);
     renderIntakeSamples(data.intakeSamples || []);
     selectFacCase(data.cases[0].certId);
+    loadExecutive();
   } catch (err) {
     $("#facCases").innerHTML = `<div class="slip-status bad">${err.message}</div>`;
   }

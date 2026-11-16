@@ -298,3 +298,119 @@ arithmetic to drift out of sync, and the browser never computes a number.
 
 _See also: `README.md` for the engineering summary, `TrustBoundary.lean` for the
 formal claims, and `scripts/paranoid_audit.py` for the audit._
+
+---
+
+# v1.0.0 — what changed for the desk, the broker and the board
+
+## 1. Paid is not incurred
+
+A cedent's quarterly statement has two kinds of number:
+
+* **Paid** — cash already out of the door (indemnity and defence).
+* **OSLR** — outstanding case reserve, the best estimate of what is still owed.
+  Under IFRS 17 this is the Liability for Incurred Claims (LIC).
+
+The layer responds to **incurred** (paid plus reserve), but only **paid** can be
+wired. The cockpit therefore computes both and books the difference:
+
+```
+verifiedEndingOslr = max(incurred, paid) − paid
+grossCashPayable   = paid − priorPaid
+```
+
+If a cedent bills cash while the *paid* position is still below the attachment,
+the verdict is `DISPUTE_PREMATURE_OSLR_CASHCALL`. That is not a rounding
+disagreement; it is a request to wire money the contract does not yet owe. The
+desk books the reserve instead, and the memo says so.
+
+## 2. Unpaid premium is netted, not ignored
+
+A facultative certificate has a gross premium, a brokerage deduction and a cash
+received to date. The unpaid net premium is available to offset an approved
+claim:
+
+```
+netPremiumDue  = gross − gross × brokerageBps / 10000
+unpaidNetPrem  = netPremiumDue − paidPremiumToDate
+premiumOffset  = min(grossCashPayable, unpaidNetPrem)   (when elected)
+netWire        = grossCashPayable − premiumOffset
+```
+
+On the sample book, case 6 has $60,000 gross, 15% brokerage, nothing received:
+$51,000 unpaid. The verified claim is $200,000; the wire is $149,000, and both
+credits appear in the voucher.
+
+## 3. The voucher has two legs
+
+Leg A settles cash:
+
+| Debit | Credit |
+|---|---|
+| Paid claims expense | Premium receivable offset |
+| | Cash wire payable |
+
+Leg B moves the reserve:
+
+| Debit | Credit |
+|---|---|
+| OSLR expense (increase) | OSLR liability |
+| OSLR liability release (decrease) | OSLR expense release |
+
+The kernel proves both legs balance, and the whole voucher balances, for every
+claim (`fullFacVoucher_balanced`). A reserve movement is not a cash movement,
+and the ledger shows that.
+
+## 4. Ruschlikon straight-through processing
+
+ACORD GRLC messages carry a response code. The cockpit maps its own verdict:
+
+| Code | Meaning |
+|---|---|
+| `AGD` | clean match, auto-agreed, no human |
+| `AGD_OFFSET` | agreed, wire reduced by unpaid net premium |
+| `QRY` | queried back to the broker (overbill, underbill, premature OSLR) |
+| `REJ` | certificate invalid — rejected at the gate |
+
+The guarantee is a theorem, not a policy: an overbilled claim can never reach
+`AGD`. Drop an ECOT XML or JSON message into the intake box and the cockpit
+returns the verified audit plus an outbound `ClaimMovementResponse` XML and EBOT
+JSON, both downloadable.
+
+## 5. Clause-to-Lean intake
+
+Paste a broker email such as:
+
+> URGENT CASH CALL — Insured: Apex Trucking | Cedant: Liberty Mutual | Layer:
+> 50% part of $500k xs $500k Auto Liability | ALAE pro-rata in addition | Gross
+> Prem: $40,000 (15% brokerage, $0 paid) | Paid Indemnity: $620,000 | Paid ALAE:
+> $124,000 | Case Reserve Indemnity: $180,000 | Prior Paid: $0 | Please wire
+> $150,000 today.
+
+The cockpit shows three panels: the raw text, the exact compilable Lean 4
+definitions for that certificate and claim, and the plain-English reading of
+what Lean verified. Amber warnings list clauses the model cannot represent —
+hammer, punitive damages, consent to settle, PFAS, subrogation and others. A
+proof about a narrower contract than the one you signed is not a proof about
+your contract.
+
+## 6. Clashes and the group view
+
+Workers' Compensation and General Liability can respond to the same explosion.
+Booked separately each looks small; together they may breach a clash threshold.
+The Group Executive Bridge scans shared occurrence tags and shared insured
+groups, reports the affected lines and certificates, and rolls the desk into
+euros. It also shows the capital the desk protected: leakage prevented is added
+to group own funds, and the ratio can only improve.
+
+## 7. The 60-second tour
+
+Open the app and press **▶ 60s Guided Demo Tour** in the header. Five steps:
+the KPI ribbon, the six cash calls, the double-entry voucher, the three-way
+intake, and the clash panel. Press `Esc` to leave at any point.
+
+## 8. Deploying it
+
+`docs/DEPLOYMENT.md` covers Render (one click from `render.yaml`), Fly.io,
+Railway and a plain VPS. The Docker build runs the paranoid audit, so an image
+cannot be produced unless every theorem still checks out.

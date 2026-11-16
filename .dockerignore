@@ -1,0 +1,9 @@
+.lake
+build
+.git
+.gitignore
+__pycache__
+*.pyc
+*.olean
+*.ilean
+node_modules
