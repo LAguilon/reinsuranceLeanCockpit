@@ -326,6 +326,26 @@ def process_intake(payload: dict) -> dict:
     return result
 
 
+def executive_summary(payload: dict) -> dict:
+    bundle = payload.get("bundle") or read_json(FAC_BUNDLE)
+    portfolio = payload.get("portfolio") or read_json(EXAMPLES / "continental_re_portfolio.json")
+    treaty, _ = run_lean_on_portfolio(portfolio)
+    own = portfolio["ownFundsEur"]
+    scr = treaty["stress"]["totalScrEur"]
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+            json.dump(bundle, fh)
+            path = fh.name
+        view, ms = run_lean(
+            ["group-view", path, str(own), str(scr), "92", "300000", "--json"]
+        )
+    finally:
+        if path and os.path.exists(path):
+            os.unlink(path)
+    return {"group": view, "treaty": treaty["stress"], "leanExecMs": ms}
+
+
 def read_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -422,6 +442,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({**report, "leanExecMs": ms})
             if path == "/api/parse-slip":
                 return self.send_json(self.parse_slip(body))
+            if path == "/api/executive-summary":
+                return self.send_json(executive_summary(body))
             if path == "/api/fac-intake":
                 return self.send_json(process_intake(body))
             if path == "/api/acord-process":

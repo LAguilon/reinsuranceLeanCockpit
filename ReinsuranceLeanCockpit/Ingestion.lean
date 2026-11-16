@@ -1,5 +1,6 @@
 import ReinsuranceLeanCockpit.Simulation
 import ReinsuranceLeanCockpit.Facultative
+import ReinsuranceLeanCockpit.GroupBridge
 import Lean.Data.Json
 
 namespace ReinsuranceLeanCockpit
@@ -564,7 +565,17 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "invalidCert_always_rejected" "Acord"
       "An invalid certificate is always rejected at the gate."
   , theoremRecord "verified_StpAutoAgreedSafe" "TrustProofs"
-      "Discharges Spec_StpAutoAgreedSafe: STP auto-agreement is safe." ]
+      "Discharges Spec_StpAutoAgreedSafe: STP auto-agreement is safe."
+  , theoremRecord "stpCount_le_total" "GroupBridge"
+      "STP cannot agree more claims than exist, by induction on the batch."
+  , theoremRecord "stpRatePct_le_100" "GroupBridge"
+      "The STP rate is a percentage and never exceeds 100."
+  , theoremRecord "rollup_wire_plus_offset_le_verified" "GroupBridge"
+      "Across any batch, premium offset plus net wire equals verified cash."
+  , theoremRecord "groupView_protected_eq" "GroupBridge"
+      "Protected own funds are initial funds plus leakage prevented."
+  , theoremRecord "groupView_protectedRatio_ge" "GroupBridge"
+      "Preventing leakage can never lower the group solvency ratio." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)
@@ -801,5 +812,50 @@ def facAuditJson (path : System.FilePath) : IO String := do
   let b ← loadFacBundle path
   pure (Json.compress (ToJson.toJson (auditFacBundle b)))
 
+/-! ## Group bridge codecs (v0.9) -/
+
+instance : ToJson ClashFinding where
+  toJson c :=
+    Json.mkObj
+      [ ("key", Json.str c.key)
+      , ("kind", Json.str c.kind)
+      , ("lines", ToJson.toJson c.lines)
+      , ("certIds", ToJson.toJson c.certIds)
+      , ("combinedIncurredUsd", ToJson.toJson c.combinedIncurredUsd)
+      , ("thresholdUsd", ToJson.toJson c.thresholdUsd)
+      , ("exceedsThreshold", ToJson.toJson c.exceedsThreshold) ]
+
+instance : ToJson GroupRollup where
+  toJson r :=
+    Json.mkObj
+      [ ("totalClaimsCount", ToJson.toJson r.totalClaimsCount)
+      , ("stpAutoAgreedCount", ToJson.toJson r.stpAutoAgreedCount)
+      , ("stpRatePct", ToJson.toJson r.stpRatePct)
+      , ("totalCedentBilledUsd", ToJson.toJson r.totalCedentBilledUsd)
+      , ("totalGrossCashVerifiedUsd", ToJson.toJson r.totalGrossCashVerifiedUsd)
+      , ("totalLeakagePreventedUsd", ToJson.toJson r.totalLeakagePreventedUsd)
+      , ("totalPremiumOffsetRecoveredUsd", ToJson.toJson r.totalPremiumOffsetRecoveredUsd)
+      , ("totalNetWireUsd", ToJson.toJson r.totalNetWireUsd)
+      , ("totalEndingOslrBookedUsd", ToJson.toJson r.totalEndingOslrBookedUsd)
+      , ("totalIncurredBookedUsd", ToJson.toJson r.totalIncurredBookedUsd)
+      , ("eurCentsPerUsd", ToJson.toJson r.eurCentsPerUsd)
+      , ("totalGrossCashVerifiedEur", ToJson.toJson r.totalGrossCashVerifiedEur)
+      , ("totalLeakagePreventedEur", ToJson.toJson r.totalLeakagePreventedEur)
+      , ("totalEndingOslrBookedEur", ToJson.toJson r.totalEndingOslrBookedEur) ]
+
+instance : ToJson GroupView where
+  toJson v :=
+    Json.mkObj
+      [ ("rollup", ToJson.toJson v.rollup)
+      , ("clashes", ToJson.toJson v.clashes)
+      , ("ownFundsEur", ToJson.toJson v.ownFundsEur)
+      , ("scrEur", ToJson.toJson v.scrEur)
+      , ("ratioPct", ToJson.toJson v.ratioPct)
+      , ("protectedOwnFundsEur", ToJson.toJson v.protectedOwnFundsEur)
+      , ("protectedRatioPct", ToJson.toJson v.protectedRatioPct) ]
+
+def groupViewJson (path : System.FilePath) (fx own scr threshold : Nat) : IO String := do
+  let b ← loadFacBundle path
+  pure (Json.compress (ToJson.toJson (groupView b fx own scr threshold)))
 
 end ReinsuranceLeanCockpit

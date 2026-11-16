@@ -123,3 +123,11 @@ open ReinsuranceLeanCockpit
 #print axioms overbilled_always_queried_or_rejected
 #print axioms invalidCert_always_rejected
 #print axioms verified_StpAutoAgreedSafe
+
+/-! ### v0.9 — group bridge -/
+
+#print axioms stpCount_le_total
+#print axioms stpRatePct_le_100
+#print axioms rollup_wire_plus_offset_le_verified
+#print axioms groupView_protected_eq
+#print axioms groupView_protectedRatio_ge

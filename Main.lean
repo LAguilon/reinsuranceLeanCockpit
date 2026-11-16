@@ -221,6 +221,36 @@ def facAuditFile (path : String) (asJson : Bool) : IO Unit := do
   else
     printFacAudit report
 
+def toNatOr (s : String) (default : Nat) : Nat :=
+  match s.toNat? with
+  | some n => n
+  | none => default
+
+def printGroupView (v : GroupView) : IO Unit := do
+  let r := v.rollup
+  IO.println "=================================================================="
+  IO.println "  GROUP EXECUTIVE BRIDGE (USD desk -> EUR group)"
+  IO.println "=================================================================="
+  IO.println s!"  Claims: {r.totalClaimsCount} | STP auto-agreed: {r.stpAutoAgreedCount} ({r.stpRatePct}%)"
+  IO.println s!"  Cedent billed:      {usd r.totalCedentBilledUsd}"
+  IO.println s!"  Cash verified:      {usd r.totalGrossCashVerifiedUsd}  ({usd r.totalGrossCashVerifiedEur} cents EUR)"
+  IO.println s!"  Leakage prevented:  {usd r.totalLeakagePreventedUsd}  ({usd r.totalLeakagePreventedEur} cents EUR)"
+  IO.println s!"  Premium offset:     {usd r.totalPremiumOffsetRecoveredUsd}"
+  IO.println s!"  Net wire:           {usd r.totalNetWireUsd}"
+  IO.println s!"  Ending OSLR:        {usd r.totalEndingOslrBookedUsd}"
+  IO.println s!"  Incurred booked:    {usd r.totalIncurredBookedUsd}"
+  IO.println s!"  Group ratio:        {v.ratioPct}% -> protected {v.protectedRatioPct}% (own funds {usd v.ownFundsEur} -> {usd v.protectedOwnFundsEur})"
+  IO.println ""
+  IO.println s!"  CLASH FINDINGS: {v.clashes.length}"
+  for c in v.clashes do
+    IO.println s!"    [{c.kind}] {c.key}: lines {c.lines}, certs {c.certIds}, incurred {usd c.combinedIncurredUsd} (threshold {usd c.thresholdUsd}) exceeds={c.exceedsThreshold}"
+  IO.println "=================================================================="
+
+def groupViewFile (path own scr fx threshold : String) (asJson : Bool) : IO Unit := do
+  let b ← loadFacBundle path
+  let v := groupView b (toNatOr fx 92) (toNatOr own 120000000) (toNatOr scr 58924000) (toNatOr threshold 300000)
+  if asJson then IO.println (Json.compress (ToJson.toJson v)) else printGroupView v
+
 def printTheorems (asJson : Bool) : IO Unit := do
   if asJson then
     IO.println verifiedTheoremsJson
@@ -239,6 +269,7 @@ def usage : IO Unit := do
   IO.println "  cockpit theorems [--json]            kernel proof registry"
   IO.println "  cockpit informalize <contract.json>  Lean-to-English back-translation"
   IO.println "  cockpit fac-audit <bundle.json> [--json]  US facultative cash-call audit"
+  IO.println "  cockpit group-view <bundle> <ownFunds> <scr> <fxCents> <threshold> [--json]"
 
 def main (args : List String) : IO Unit := do
   match args with
@@ -251,6 +282,9 @@ def main (args : List String) : IO Unit := do
   | ["informalize", path] => informalizeFile path
   | ["fac-audit", path] => facAuditFile path false
   | ["fac-audit", path, "--json"] => facAuditFile path true
+  | ["group-view", path, own, scr, fx, threshold] => groupViewFile path own scr fx threshold false
+  | ["group-view", path, own, scr, fx, threshold, "--json"] =>
+      groupViewFile path own scr fx threshold true
   | ["theorems"] => printTheorems false
   | ["theorems", "--json"] => printTheorems true
   | _ => usage

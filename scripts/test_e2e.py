@@ -369,6 +369,33 @@ def main() -> int:
             )
             check(f"intake {sample['name']}: back-translation present", len(row["backTranslation"]) > 40)
 
+        # ---- Executive group bridge (v0.9) ---------------------------------
+        execu = request(base, "/api/executive-summary", {})
+        rollup = execu["group"]["rollup"]
+        check(
+            "executive rollup: leakage 980k / offset 51k / OSLR 280k",
+            rollup["totalLeakagePreventedUsd"] == 980_000
+            and rollup["totalPremiumOffsetRecoveredUsd"] == 51_000
+            and rollup["totalEndingOslrBookedUsd"] == 280_000,
+            str(rollup),
+        )
+        check("executive rollup: net wire 2,579,000", rollup["totalNetWireUsd"] == 2_579_000)
+        check("executive rollup: STP rate 16%", rollup["stpRatePct"] == 16)
+        clashes = execu["group"]["clashes"]
+        check("executive: two clash findings", len(clashes) == 2, str(len(clashes)))
+        check(
+            "executive: WCA + GL pileup exceeds threshold",
+            any(
+                "Workers Compensation" in c["lines"] and "General Liability" in c["lines"] and c["exceedsThreshold"]
+                for c in clashes
+            ),
+        )
+        check(
+            "executive: protected ratio >= group ratio",
+            execu["group"]["protectedRatioPct"] >= execu["group"]["ratioPct"],
+        )
+        check("executive: treaty stress still 94%", execu["treaty"]["solvencyRatioPct"] == 94)
+
         # ---- ACORD GRLC / Ruschlikon STP (v0.7) ----------------------------
         acord = request(base, "/api/acord-samples")
         check("GET /api/acord-samples: 3 messages", len(acord["samples"]) == 3)
