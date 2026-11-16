@@ -69,4 +69,7 @@ theorem verified_PaidOslrConservation : Spec_PaidOslrConservation :=
 theorem verified_FacFullVoucherBalanced : Spec_FacFullVoucherBalanced :=
   fun c s => fullFacVoucher_balanced c s
 
+theorem verified_StpAutoAgreedSafe : Spec_StpAutoAgreedSafe :=
+  fun c r h => stpAutoAgreed_implies_valid_and_zero_overbill c r h
+
 end ReinsuranceLeanCockpit

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import urllib.error
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -336,6 +337,48 @@ def main() -> int:
             guide.exists() and guide.read_text().count("\n") > 150,
             f"{guide.read_text().count(chr(10)) if guide.exists() else 0} lines",
         )
+
+        # ---- ACORD GRLC / Ruschlikon STP (v0.7) ----------------------------
+        acord = request(base, "/api/acord-samples")
+        check("GET /api/acord-samples: 3 messages", len(acord["samples"]) == 3)
+        codes = {}
+        for sample in acord["samples"]:
+            out = request(base, "/api/acord-process", {"sampleName": sample["name"]})
+            row = out["report"]["results"][0]
+            codes[sample["name"]] = row["acordResponseCode"]
+            check(
+                f"acord {sample['name']}: outbound XML",
+                out["outboundXml"].startswith("<?xml") and "<ResponseStatusCode>" in out["outboundXml"],
+            )
+            check(
+                f"acord {sample['name']}: outbound JSON ledger balanced",
+                out["outboundJson"]["ledger"]["grandTotalDebitUsd"]
+                == out["outboundJson"]["ledger"]["grandTotalCreditUsd"],
+            )
+            check(
+                f"acord {sample['name']}: inbound echoes to outbound",
+                out["inbound"]["certificate"]["certId"] == row["certId"],
+            )
+        check(
+            "acord responses are AGD / QRY / QRY",
+            list(codes.values()) == ["AGD", "QRY", "QRY"],
+            str(codes),
+        )
+
+        def post_status(path, payload, size=None):
+            data = json.dumps(payload).encode() if size is None else b" " * size
+            req = urllib.request.Request(
+                base + path, data=data, headers={"Content-Type": "application/json"}, method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req) as res:
+                    return res.status
+            except urllib.error.HTTPError as err:
+                return err.code
+
+        xxe = '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><ACORD><X>&xxe;</X></ACORD>'
+        check("acord XXE payload rejected with 400", post_status("/api/acord-process", {"content": xxe}) == 400)
+        check("oversized payload rejected with 413", post_status("/api/acord-process", {}, 2_500_000) == 413)
 
         audit = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "paranoid_audit.py")],

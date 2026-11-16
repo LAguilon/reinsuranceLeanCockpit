@@ -1,0 +1,30 @@
+{
+  "messageType": "GRLCClaimMovement",
+  "sender": "Guy Carpenter",
+  "receiver": "Continental Re",
+  "contractSection": {
+    "contractReference": "FAC-ACORD-03",
+    "insuredName": "Apex BioTech Corp.",
+    "cedentName": "Continental Re",
+    "lineOfBusiness": "DO",
+    "attachmentPointAmt": 10000000,
+    "layerLimitAmt": 10000000,
+    "signedLinePct": 20,
+    "alaeClauseCode": "IL",
+    "grossPremiumAmt": 0,
+    "brokerageBps": 0,
+    "paidPremiumAmt": 0,
+    "insuredGroup": "Apex BioTech Group"
+  },
+  "claimEntry": {
+    "claimReference": "CC-ACORD-03",
+    "lossDescription": "Securities class action, defence inside limits",
+    "paidIndemnityAmt": 16000000,
+    "paidExpenseAmt": 6000000,
+    "oslrIndemnityAmt": 0,
+    "oslrExpenseAmt": 0,
+    "priorSettledAmt": 0,
+    "priorOSLRAmt": 0,
+    "cashCallBilledAmt": 2400000
+  }
+}

@@ -556,7 +556,15 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "verified_PaidOslrConservation" "TrustProofs"
       "Discharges Spec_PaidOslrConservation: paid plus OSLR equals incurred."
   , theoremRecord "verified_FacFullVoucherBalanced" "TrustProofs"
-      "Discharges Spec_FacFullVoucherBalanced: the two-leg voucher balances." ]
+      "Discharges Spec_FacFullVoucherBalanced: the two-leg voucher balances."
+  , theoremRecord "stpAutoAgreed_implies_valid_and_zero_overbill" "Acord"
+      "Auto-agreement implies a valid certificate and an exact bill."
+  , theoremRecord "overbilled_always_queried_or_rejected" "Acord"
+      "An overbilled claim is never auto-agreed and never silently offset."
+  , theoremRecord "invalidCert_always_rejected" "Acord"
+      "An invalid certificate is always rejected at the gate."
+  , theoremRecord "verified_StpAutoAgreedSafe" "TrustProofs"
+      "Discharges Spec_StpAutoAgreedSafe: STP auto-agreement is safe." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)

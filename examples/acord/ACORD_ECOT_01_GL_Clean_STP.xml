@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ACORD>
+  <GRLCClaimMovement>
+    <Sender>Marsh US Facultative</Sender>
+    <Receiver>Continental Re</Receiver>
+    <ContractSection>
+      <ContractReference>FAC-ACORD-01</ContractReference>
+      <InsuredName>Lakeside Contractors LLC</InsuredName>
+      <CedentName>Continental Re</CedentName>
+      <LineOfBusiness>GL</LineOfBusiness>
+      <AttachmentPointAmt>500000</AttachmentPointAmt>
+      <LayerLimitAmt>500000</LayerLimitAmt>
+      <SignedLineBps>10000</SignedLineBps>
+      <ALAEClauseCode>PRA</ALAEClauseCode>
+      <GrossPremiumAmt>60000</GrossPremiumAmt>
+      <BrokerageBps>1500</BrokerageBps>
+      <PaidPremiumAmt>60000</PaidPremiumAmt>
+      <InsuredGroup>Lakeside Group</InsuredGroup>
+    </ContractSection>
+    <ClaimEntry>
+      <ClaimReference>CC-ACORD-01</ClaimReference>
+      <LossDescription>Scaffold collapse, clean settlement</LossDescription>
+      <PaidIndemnityAmt>700000</PaidIndemnityAmt>
+      <PaidExpenseAmt>0</PaidExpenseAmt>
+      <OSLRIndemnityAmt>0</OSLRIndemnityAmt>
+      <OSLRExpenseAmt>0</OSLRExpenseAmt>
+      <PriorSettledAmt>0</PriorSettledAmt>
+      <PriorOSLRAmt>0</PriorOSLRAmt>
+      <CashCallBilledAmt>200000</CashCallBilledAmt>
+    </ClaimEntry>
+  </GRLCClaimMovement>
+</ACORD>

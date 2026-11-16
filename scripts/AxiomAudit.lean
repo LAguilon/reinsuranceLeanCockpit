@@ -116,3 +116,10 @@ open ReinsuranceLeanCockpit
 #print axioms fullFacVoucher_balanced
 #print axioms verified_PaidOslrConservation
 #print axioms verified_FacFullVoucherBalanced
+
+/-! ### v0.7 — ACORD GRLC / Ruschlikon STP -/
+
+#print axioms stpAutoAgreed_implies_valid_and_zero_overbill
+#print axioms overbilled_always_queried_or_rejected
+#print axioms invalidCert_always_rejected
+#print axioms verified_StpAutoAgreedSafe

@@ -28,9 +28,18 @@ EXAMPLES = ROOT / "examples"
 SLIPS = EXAMPLES / "slips"
 FAC_SLIPS = EXAMPLES / "fac_slips"
 FAC_BUNDLE = EXAMPLES / "us_facultative_desk.json"
+ACORD_DIR = EXAMPLES / "acord"
 
 sys.path.insert(0, str(ROOT / "server"))
 import slip_parser  # noqa: E402
+import acord_adapter  # noqa: E402
+
+MAX_REQUEST_BYTES = 2_000_000
+
+
+class PayloadTooLarge(Exception):
+    pass
+
 
 PRESET_PORTFOLIOS = [
     ("as_bound", "Continental Re (As Bound - 94% Breach)", "continental_re_portfolio.json"),
@@ -215,6 +224,62 @@ def workflow_trace(report: dict, bundle: dict) -> list[dict]:
     ]
 
 
+_theorem_count_cache = {"n": 0}
+
+
+def theorem_count() -> int:
+    if _theorem_count_cache["n"] == 0 and lean_available():
+        try:
+            data, _ = run_lean(["theorems", "--json"])
+            _theorem_count_cache["n"] = len(data)
+        except Exception:  # noqa: BLE001
+            return 0
+    return _theorem_count_cache["n"]
+
+
+def acord_samples() -> list[dict]:
+    out = []
+    if not ACORD_DIR.exists():
+        return out
+    for path in sorted(ACORD_DIR.iterdir()):
+        if path.suffix.lower() not in {".xml", ".json"}:
+            continue
+        out.append(
+            {
+                "name": path.name,
+                "format": path.suffix.lstrip(".").lower(),
+                "url": f"/api/acord-samples/{path.name}",
+                "content": path.read_text(encoding="utf-8"),
+            }
+        )
+    return out
+
+
+def process_acord(payload: dict) -> dict:
+    text = payload.get("content")
+    if text is None and payload.get("sampleName"):
+        name = Path(payload["sampleName"]).name
+        path = ACORD_DIR / name
+        if not path.exists():
+            raise ValueError(f"ACORD sample not found: {name}")
+        text = path.read_text(encoding="utf-8")
+    if not text:
+        raise ValueError("provide content or sampleName")
+
+    cert, claim = acord_adapter.parse_acord(text)
+    report, ms = run_lean_fac(acord_adapter.bundle_for(cert, claim))
+    out_xml, out_json = acord_adapter.build_outbound(
+        report, cert, claim, theorem_count=theorem_count()
+    )
+    return {
+        "report": report,
+        "inbound": {"certificate": cert, "claim": claim},
+        "outboundXml": out_xml,
+        "outboundJson": out_json,
+        "leanExecMs": ms,
+    }
+
+
 def read_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -258,6 +323,16 @@ class Handler(SimpleHTTPRequestHandler):
 
     def read_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
+        if length > MAX_REQUEST_BYTES:
+            # Drain what the client is already sending (bounded) so it can read
+            # the 413 instead of seeing a broken pipe mid-upload.
+            remaining = min(length, MAX_REQUEST_BYTES * 2)
+            while remaining > 0:
+                chunk = self.rfile.read(min(65536, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+            raise PayloadTooLarge(f"request body exceeds {MAX_REQUEST_BYTES} bytes")
         if length <= 0:
             return {}
         return json.loads(self.rfile.read(length) or b"{}")
@@ -275,10 +350,14 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(self.presets())
             if path == "/api/fac-presets":
                 return self.send_json(self.fac_presets())
+            if path == "/api/acord-samples":
+                return self.send_json({"samples": acord_samples()})
             if path.startswith("/api/slips/"):
                 return self.send_slip(path[len("/api/slips/"):])
             if path.startswith("/api/fac-slips/"):
                 return self.send_fac_slip(path[len("/api/fac-slips/"):])
+            if path.startswith("/api/acord-samples/"):
+                return self.send_acord_sample(path[len("/api/acord-samples/"):])
             return super().do_GET()
         except Exception as exc:  # noqa: BLE001 - surface the message, not a stack
             self.error_json(str(exc), 500)
@@ -295,11 +374,17 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({**report, "leanExecMs": ms})
             if path == "/api/parse-slip":
                 return self.send_json(self.parse_slip(body))
+            if path == "/api/acord-process":
+                return self.send_json(process_acord(body))
             if path == "/api/fac-audit":
                 bundle = body.get("bundle") or read_json(FAC_BUNDLE)
                 report, ms = run_lean_fac(bundle)
                 return self.send_json({**report, "workflowTrace": workflow_trace(report, bundle), "leanExecMs": ms})
             return self.error_json("unknown endpoint", 404)
+        except PayloadTooLarge as exc:
+            self.error_json(str(exc), 413)
+        except ValueError as exc:
+            self.error_json(str(exc), 400)
         except KeyError as exc:
             self.error_json(f"missing field: {exc}", 400)
         except subprocess.TimeoutExpired:
@@ -332,6 +417,19 @@ class Handler(SimpleHTTPRequestHandler):
             "workflowTrace": workflow_trace(report, bundle),
             "leanExecMs": ms,
         }
+
+    def send_acord_sample(self, filename: str) -> None:
+        safe = Path(filename).name
+        path = ACORD_DIR / safe
+        if not path.exists() or path.suffix.lower() not in {".xml", ".json"}:
+            return self.error_json("ACORD sample not found", 404)
+        data = path.read_bytes()
+        ctype = "application/xml" if path.suffix.lower() == ".xml" else "application/json"
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def send_fac_slip(self, filename: str) -> None:
         safe = Path(filename).name

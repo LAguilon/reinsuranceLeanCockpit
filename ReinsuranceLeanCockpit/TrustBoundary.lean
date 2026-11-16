@@ -4,6 +4,7 @@ import ReinsuranceLeanCockpit.Validation
 import ReinsuranceLeanCockpit.Simulation
 import ReinsuranceLeanCockpit.AlpineShowcase
 import ReinsuranceLeanCockpit.Facultative
+import ReinsuranceLeanCockpit.Acord
 
 /-!
 # Trust boundary: the eight statements a human should audit
@@ -102,5 +103,12 @@ premium offset. -/
 def Spec_FacFullVoucherBalanced : Prop :=
   ∀ (c : FacCertificate) (s : FacClaimSubmission),
     (auditFacClaim c s).voucher.grandTotalDebitUsd = (auditFacClaim c s).voucher.grandTotalCreditUsd
+
+/-- **13. Ruschlikon STP safety.** Auto-agreement is only reachable when the
+certificate is valid and the bill matches the certificate exactly. -/
+def Spec_StpAutoAgreedSafe : Prop :=
+  ∀ (c : FacCertificate) (r : FacAuditResult),
+    classifyRuschlikonStp c r = .STP_AUTO_AGREED →
+      c.isValid = true ∧ r.overbilledUsd = 0 ∧ r.underbilledUsd = 0
 
 end ReinsuranceLeanCockpit

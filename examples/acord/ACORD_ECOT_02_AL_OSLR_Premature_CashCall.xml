@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ACORD>
+  <GRLCClaimMovement>
+    <Sender>Aon Reinsurance Solutions</Sender>
+    <Receiver>Continental Re</Receiver>
+    <ContractSection>
+      <ContractReference>FAC-ACORD-02</ContractReference>
+      <InsuredName>Ohio Plant Logistics Inc.</InsuredName>
+      <CedentName>Continental Re</CedentName>
+      <LineOfBusiness>AL</LineOfBusiness>
+      <AttachmentPointAmt>500000</AttachmentPointAmt>
+      <LayerLimitAmt>500000</LayerLimitAmt>
+      <SignedLineBps>10000</SignedLineBps>
+      <ALAEClauseCode>PRA</ALAEClauseCode>
+      <GrossPremiumAmt>0</GrossPremiumAmt>
+      <BrokerageBps>0</BrokerageBps>
+      <PaidPremiumAmt>0</PaidPremiumAmt>
+      <InsuredGroup>Ohio Plant Group</InsuredGroup>
+    </ContractSection>
+    <ClaimEntry>
+      <ClaimReference>CC-ACORD-02</ClaimReference>
+      <LossDescription>Plant fire, reserve open, cash call raised on reserve</LossDescription>
+      <PaidIndemnityAmt>400000</PaidIndemnityAmt>
+      <PaidExpenseAmt>40000</PaidExpenseAmt>
+      <OSLRIndemnityAmt>350000</OSLRIndemnityAmt>
+      <OSLRExpenseAmt>50000</OSLRExpenseAmt>
+      <PriorSettledAmt>0</PriorSettledAmt>
+      <PriorOSLRAmt>0</PriorOSLRAmt>
+      <CashCallBilledAmt>250000</CashCallBilledAmt>
+    </ClaimEntry>
+  </GRLCClaimMovement>
+</ACORD>
