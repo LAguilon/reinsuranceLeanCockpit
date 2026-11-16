@@ -68,3 +68,28 @@ open ReinsuranceLeanCockpit
 #print axioms postSeasonOwnFunds_antitone
 #print axioms postSeasonRatio_antitone_num
 #print axioms postSeasonRatio_antitone
+
+/-! ### v0.4 trust boundary -/
+
+#print axioms postSeasonRatio_antitone_fixedScr
+
+#print axioms verified_NoOverRecovery
+#print axioms verified_TowerMoneyConservation
+#print axioms verified_ContractPayoutMonotone
+#print axioms verified_TowerNetLossMonotone
+#print axioms verified_PostSeasonSolvencyAntitone
+#print axioms verified_GatekeeperExactness
+#print axioms verified_AlpineUniversalFxFix
+#print axioms verified_NonVacuityWitness
+
+/-! ### completeness: every registry theorem is axiom-audited -/
+
+#print axioms solvencyRatioPct_zero_scr
+#print axioms solvencyRatioPct_pos
+#print axioms solvencyRatioPct_mono_ownFunds
+#print axioms evaluateSolvency_ratio_mono_ownFunds
+#print axioms inward_agg_capacity_eq
+#print axioms outward_agg_capacity_eq
+#print axioms isValid_quotaShare_shareBps
+#print axioms checkContractDetails_eq_nil_of_valid
+#print axioms portfolioValidationErrors_nil

@@ -333,6 +333,15 @@ function slipStatus(text, cls) {
 
 function renderSlipResult(result) {
   $("#slipText").textContent = result.extractedText;
+  $("#slipEnglish").textContent = result.leanBackTranslation || "—";
+  const divergences = result.translationWarnings || [];
+  const banner = $("#translationBanner");
+  banner.hidden = divergences.length === 0;
+  if (divergences.length) {
+    banner.innerHTML =
+      `<b>Translation divergence — ${divergences.length} clause(s) present in the paper but absent from the Lean AST</b>` +
+      `<ul>${divergences.map((w) => `<li>${w}</li>`).join("")}</ul>`;
+  }
   $("#slipJson").textContent = JSON.stringify(result.contract, null, 2);
 
   const after = result.auditAfterBind;
@@ -591,6 +600,25 @@ async function loadTheorems() {
     .join("");
 }
 
+/* ---------- trust boundary ---------- */
+const TRUST_SPECS = [
+  ["Spec_NoOverRecovery", "No valid contract of any form pays more than the loss it is applied to.", "evalContractPayout_le_loss"],
+  ["Spec_TowerMoneyConservation", "Net retained plus recovered equals gross, and recovered never exceeds gross.", "applyInuringTower_conservation"],
+  ["Spec_ContractPayoutMonotone", "A larger loss never produces a smaller recovery.", "evalContractPayout_mono"],
+  ["Spec_TowerNetLossMonotone", "A larger gross loss leaves a larger net retained loss after any valid tower.", "applyInuringTower_net_mono"],
+  ["Spec_PostSeasonSolvencyAntitone", "A larger drain or requirement can only lower the post-season ratio.", "postSeasonRatio_antitone"],
+  ["Spec_GatekeeperExactness", "Ingestion admits a contract exactly when the theorems' isValid hypothesis holds.", "validateContract_isEmpty_iff"],
+  ["Spec_AlpineUniversalFxFix", "The restructured Alpine book stays under 25M EUR for every loss and FX ≤ parity.", "alpine_fixed_fx_safe"],
+  ["Spec_NonVacuityWitness", "At least one valid contract actually pays something — the specs are not vacuous.", "verified_NonVacuityWitness"],
+];
+
+function renderTrust() {
+  $("#trustTable tbody").innerHTML = TRUST_SPECS.map(
+    ([name, claim, theorem]) =>
+      `<tr><td class="mono">${name}</td><td>${claim}</td><td class="mono muted">${theorem}</td></tr>`
+  ).join("");
+}
+
 /* ---------- bootstrap ---------- */
 async function init() {
   try {
@@ -628,6 +656,7 @@ async function init() {
       renderEvents(state.scenario.events);
     });
 
+    renderTrust();
     await loadTheorems();
     await selectPreset(state.presets.portfolios[0].id);
   } catch (err) {

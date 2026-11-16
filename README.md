@@ -31,6 +31,67 @@ python3 scripts/test_e2e.py
 
 ---
 
+## How to trust "checked in Lean" — the Xena / Buzzard four-question audit
+
+A proof is only worth what its *statement* is worth. The repository is arranged
+so that a sceptical reviewer can answer Kevin Buzzard's four questions without
+reading a single tactic.
+
+**Q1 — Can I read the statements?** `ReinsuranceLeanCockpit/TrustBoundary.lean`
+is under 100 lines, contains **no proof tactics at all**, and declares eight
+named `Prop` specifications with plain-English docstrings: no over-recovery,
+tower conservation, payout monotonicity, tower monotonicity, post-season
+solvency antitonicity, gatekeeper exactness, the universal FX fix, and a
+non-vacuity witness. Read that file and you know exactly what is claimed.
+
+**Q2 — Does the build produce the artefact?** `lakefile.toml` lists `cockpit` in
+`defaultTargets`, so a plain `lake build` produces `.lake/build/bin/cockpit`.
+`server/app.py` additionally rebuilds it on startup if it is missing.
+
+**Q3 — Is the proof real, or did it escape through a hatch?**
+`scripts/paranoid_audit.py` scans every Lean source for `sorry`, `admit`,
+`axiom`, `opaque`, `unsafe`, `@[extern`, `@[implemented_by` and `native_decide`
+(comments stripped), then parses every `#print axioms` line and fails if any
+theorem depends on anything outside `{propext, Classical.choice, Quot.sound}` —
+in particular `sorryAx`, `Lean.ofReduceBool` or `Lean.trustCompiler`. It also
+asserts that every theorem in the in-app registry is axiom-audited, so the
+registry cannot overstate what was checked.
+
+**Q4 — Was it replayed by an independent kernel?** If `lean4checker` or
+`comparator` is on `PATH` the audit invokes it; otherwise it prints the exact
+external replay command (`lake comparator --paranoid`). This environment has
+neither installed, and the audit says so rather than claiming otherwise.
+
+### The non-vacuity trap
+
+`Spec_NonVacuityWitness` exists because a suite of universally quantified
+statements is trivially true if `isValid` is never satisfiable. `TrustProofs.lean`
+discharges it with a concrete 40M xs 10M layer and lets the **kernel compute**
+that a 40,000,000 loss pays 30,000,000 — `by decide`, not by restatement. If
+someone later changes `isValid` to `false`, that proof stops compiling.
+
+### Lost in translation: the back-translator and the divergence scanner
+
+A PDF says more than `BoundContract` can hold. Two mechanisms make the gap
+visible instead of silent:
+
+* `informalizeContract` (in `Validation.lean`) renders what Lean *actually
+  modelled* as English: direction, form, counterparty and rating, currency,
+  perils, priority, attachment, limit, aggregate, reinstatement rate, and an
+  explicit scope note. Available as `lake exe cockpit informalize <contract.json>`.
+* `server/slip_parser.py` scans the extracted text for clauses with no AST
+  representation — `franchise`, `hours clause`, `72 hours`, `168 hours`,
+  `excluding`, `sub-limit`, `cyber war`, `terrorism`, `inuring to`,
+  `loss corridor` — and returns `translationWarnings`.
+
+`SLIP_04_Lost_In_Translation_Hours_Excl.pdf` is the demonstration: an XoL slip
+whose numbers pass the gatekeeper, but whose wording contains a 72 hours clause
+and a Florida exclusion. The UI shows the three-way view — extracted text, Lean
+back-translation, divergence warnings — so the reviewer sees that Lean proved
+something *narrower* than the slip says.
+
+---
+
 ## v0.4 — why the solvency ratio could misbehave
 
 The v0.3 simulator reported `ownFunds / (netLoss + reinstatement + SCR)`. Capital
@@ -90,6 +151,7 @@ lake exe cockpit audit examples/continental_re_portfolio.json --json
 lake exe cockpit simulate examples/continental_re_portfolio.json \
                           examples/scenarios/global_twin_cat_fx_shock.json [--json]
 lake exe cockpit theorems [--json]
+lake exe cockpit informalize examples/slips/parsed_contract.json
 ```
 
 ---
@@ -127,7 +189,7 @@ the outward tower in inuring order. Stop losses then apply to the season total.
 
 ## What is proved
 
-57 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
+66 theorems, no `sorry`, no `sorryAx`. The core of the portfolio argument:
 
 | Theorem | Statement |
 |---|---|
@@ -151,7 +213,8 @@ the outward tower in inuring order. Stop losses then apply to the season total.
 | `evalContractNet_mono` | every valid contract's net retention is monotone in the loss |
 | `applyInuringTower_net_mono` | **by induction:** a bigger gross loss leaves a bigger net retained loss |
 | `postSeasonOwnFunds_antitone` | a bigger drain leaves less capital |
-| `postSeasonRatio_antitone` | a bigger drain can only lower the post-season ratio |
+| `postSeasonRatio_antitone` | a bigger drain **or requirement** can only lower the post-season ratio |
+| `verified_NoOverRecovery` … `verified_NonVacuityWitness` | the eight trust-boundary specifications, discharged at their exact declared types |
 | `solvencyRatioPct_mono_ownFunds` | adding capital never lowers the ratio |
 
 `scripts/AxiomAudit.lean` runs `#print axioms` over the headline set; nothing
@@ -205,6 +268,7 @@ with a correct `xref` table:
 | `SLIP_01_Valid_Gap_Closer_USD.pdf` | 10M USD xs 20M closes the vertical gap between Layer 1 (ends 20M) and Layer 2 (attaches 30M). Findings fall; the gap disappears. |
 | `SLIP_02_Trap_Unrated_FX_Mismatch.pdf` | Unrated Cayman cell, EUR-denominated against JPY inward business. Adds a `CounterpartyCreditCliff` and leaves the currency mismatch standing. |
 | `SLIP_03_Illegal_115pct_QuotaShare.pdf` | `Share_Bps: 11500`. The gate rejects it and names the violated bound. |
+| `SLIP_04_Lost_In_Translation_Hours_Excl.pdf` | Numbers pass, wording does not: 72 hours clause and a Florida exclusion are flagged as unmodelled. |
 
 `server/slip_parser.py` round-trips all three back into the exact JSON schema
 `Ingestion.lean` expects.
@@ -235,6 +299,9 @@ new credit cliff, gatekeeper rejection), simulation conservation
   v0.1 hours clause is not yet wired into `BoundContract`.
 * The PDF extractor handles simple text-layer PDFs, not scanned images or
   complex encodings.
+* The divergence scanner is lexical. It catches the clauses it lists, not every
+  clause a lawyer could write; `translationWarnings` is a prompt to read the
+  wording, not a certificate that the wording is modelled.
 * The solvency sweep plateaus once every inward limit and the stop loss bind
   (about $80M ground-up on the sample book). That is the correct shape for this
   portfolio, not a monotonicity failure: the ratio stops falling because the
@@ -248,10 +315,12 @@ ReinsuranceLeanCockpit/
   Contracts.lean  Diagnostics.lean                   # v0.2
   Validation.lean  Simulation.lean  Ingestion.lean   # v0.3
   Monotonicity.lean                                  # v0.4
+  TrustBoundary.lean  TrustProofs.lean               # v0.4 trust architecture
 Main.lean
 server/app.py  server/slip_parser.py
 web/index.html  web/styles.css  web/app.js
-scripts/generate_sample_pdfs.py  scripts/test_e2e.py  scripts/AxiomAudit.lean
+scripts/generate_sample_pdfs.py  scripts/test_e2e.py
+scripts/AxiomAudit.lean  scripts/paranoid_audit.py
 examples/continental_re_portfolio.json  examples/continental_re_fixed.json
 examples/scenarios/global_twin_cat_fx_shock.json
 examples/slips/*.pdf  examples/slips/*.txt

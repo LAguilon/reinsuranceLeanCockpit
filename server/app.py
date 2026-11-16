@@ -48,6 +48,10 @@ SLIP_LABELS = {
         "Broker Typo 115% Quota Share (Illegal)",
         "shareBps = 11500 violates the quota-share bound; the gate must reject it.",
     ),
+    "SLIP_04_Lost_In_Translation_Hours_Excl.pdf": (
+        "Unmodeled Florida Exclusion / 72h Clause",
+        "Numbers are admissible; the wording contains a 72 hours clause and an exclusion the AST cannot represent.",
+    ),
 }
 
 
@@ -105,6 +109,31 @@ def run_lean_on_scenario(portfolio: dict, scenario: dict) -> tuple[dict, float]:
         return run_lean(["simulate", handles[0], handles[1], "--json"])
     finally:
         for path in handles:
+            os.unlink(path)
+
+
+def back_translate(contract: dict) -> str | None:
+    """Ask Lean what the contract means, in English. The text comes from the
+    same fields the proofs consume, so it cannot describe a contract Lean did
+    not see."""
+    if not lean_available():
+        return None
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+            json.dump(contract, fh)
+            path = fh.name
+        proc = subprocess.run(
+            [str(LEAN_BIN), "informalize", path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if proc.returncode != 0:
+            return None
+        return proc.stdout.strip()
+    except Exception:  # noqa: BLE001 - a missing translation is not a 500
+        return None
+    finally:
+        if path and os.path.exists(path):
             os.unlink(path)
 
 
@@ -238,6 +267,8 @@ class Handler(SimpleHTTPRequestHandler):
             "extractedText": parsed["extractedText"],
             "contract": parsed["contract"],
             "parseWarnings": parsed["parseWarnings"],
+            "translationWarnings": parsed.get("translationWarnings", []),
+            "leanBackTranslation": back_translate(parsed["contract"]),
             "auditAfterBind": None,
             "leanExecMs": None,
         }

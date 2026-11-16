@@ -193,3 +193,11 @@ details.theorems table { margin-top: 10px; }
   .ratio-bridge { grid-template-columns: 1fr 1fr; }
   .ratio-bridge .arrow { display: none; }
 }
+
+.translation-banner {
+  border: 1px solid rgba(245, 158, 11, .55); background: rgba(245, 158, 11, .1);
+  color: #fde68a; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12.5px;
+}
+.translation-banner ul { margin: 6px 0 0 18px; padding: 0; }
+.translation-banner li { margin: 3px 0; }
+.trust-status { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 12px; }

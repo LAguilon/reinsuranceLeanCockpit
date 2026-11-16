@@ -305,6 +305,10 @@ structure ScenarioSimulationReport where
   postSeasonOwnFundsEur : Nat
   /-- Forward requirement after the season. -/
   postSeasonScrEur : Nat
+  /-- True when the season drain consumes all own funds: equity is wiped out. -/
+  isEquityWipedOut : Bool
+  /-- Alias for the headline post-season ratio, named as the specification does. -/
+  postSeasonSolvencyRatioPct : Nat
   /-- The pre-v0.4 ratio, kept for comparison. -/
   preSeasonSolvencyRatioPct : Nat
   /-- Headline: post-season capital over post-season requirement. -/
@@ -326,6 +330,7 @@ def runPortfolioScenario (p : BoundPortfolio) (s : StressScenario) : ScenarioSim
   let postFunds := postSeasonOwnFunds p.ownFundsEur drain
   let postScr := postSeasonScr p.otherScrEur cp p.maxSingleEventAppetiteEur
   let ratio := postSeasonRatio p.ownFundsEur postScr drain
+  let wiped := decide (p.ownFundsEur ≤ drain)
   let preScr := finalNet + reinst + cp + p.otherScrEur
   let preRatio := solvencyRatioPct p.ownFundsEur preScr
   { scenarioName := s.scenarioName
@@ -347,9 +352,11 @@ def runPortfolioScenario (p : BoundPortfolio) (s : StressScenario) : ScenarioSim
     seasonLossDrainEur := drain
     postSeasonOwnFundsEur := postFunds
     postSeasonScrEur := postScr
+    isEquityWipedOut := wiped
+    postSeasonSolvencyRatioPct := ratio
     preSeasonSolvencyRatioPct := preRatio
     solvencyRatioPct := ratio
-    isSolvent := ratio ≥ 100 }
+    isSolvent := !wiped && ratio ≥ 100 }
 
 /-- **Pre-season SCR identity, preserved from v0.2.** The build-up total is
 still exactly its four components. -/
@@ -380,11 +387,15 @@ theorem scenarioReport_postFunds_eq (p : BoundPortfolio) (s : StressScenario) :
   unfold runPortfolioScenario postSeasonOwnFunds
   rfl
 
-/-- The solvency flag is exactly the ratio test. -/
+/-- The solvency flag is exactly "not wiped out, and at least 100%". The wipeout
+clause matters when the post-season requirement is zero: the 999 sentinel then
+reports a healthy ratio, but a book whose equity is gone must never be called
+solvent. -/
 theorem scenarioReport_isSolvent_iff (p : BoundPortfolio) (s : StressScenario) :
     (runPortfolioScenario p s).isSolvent = true ↔
-      (runPortfolioScenario p s).solvencyRatioPct ≥ 100 := by
+      (runPortfolioScenario p s).isEquityWipedOut = false ∧
+        (runPortfolioScenario p s).solvencyRatioPct ≥ 100 := by
   unfold runPortfolioScenario
-  simp
+  simp [Bool.and_eq_true]
 
 end ReinsuranceLeanCockpit

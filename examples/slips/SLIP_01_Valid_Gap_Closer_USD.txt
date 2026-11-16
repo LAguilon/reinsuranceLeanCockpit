@@ -15,7 +15,7 @@ Aggregate_Limit: 20000000
 Reinstatement_Rate_Bps: 10000
 Base_Premium: 400000
 --------------------------------------------------
-WORDING: Subject to standard hours clause and exact integer settlement.
+WORDING: Subject to exact integer settlement.
 All amounts are expressed in minor units of the stated currency.
 Governing law: England and Wales. Arbitration: London, LCIA rules.
 Signed for and on behalf of the reinsurer by duly authorised signatory.

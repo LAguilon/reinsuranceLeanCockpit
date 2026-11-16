@@ -13,7 +13,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
 5 0 obj
-<< /Length 900 >>
+<< /Length 874 >>
 stream
 BT
 /F1 9 Tf
@@ -49,7 +49,7 @@ T*
 T*
 (--------------------------------------------------) Tj
 T*
-(WORDING: Subject to standard hours clause and exact integer settlement.) Tj
+(WORDING: Subject to exact integer settlement.) Tj
 T*
 (All amounts are expressed in minor units of the stated currency.) Tj
 T*
@@ -71,5 +71,5 @@ xref
 trailer
 << /Size 6 /Root 1 0 R >>
 startxref
-1268
+1242
 %%EOF

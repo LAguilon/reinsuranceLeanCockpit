@@ -145,4 +145,42 @@ theorem checkContractDetails_eq_nil_of_valid (c : BoundContract) (h : c.isValid 
 /-- A portfolio with no contracts has no validation errors. -/
 theorem portfolioValidationErrors_nil : portfolioValidationErrors [] = [] := rfl
 
+/-! ## Lean-to-English back-translation -/
+
+/-- Basis points as a percentage with two decimals: `2500` prints `25.00%`. -/
+def bpsText (bps : Nat) : String :=
+  let whole := bps / 100
+  let frac := bps % 100
+  let fracText := if frac < 10 then s!"0{frac}" else toString frac
+  s!"{whole}.{fracText}%"
+
+def perilsText (ps : List Peril) : String :=
+  String.intercalate ", " (ps.map (fun p => p.toString))
+
+def kindName : ContractKind -> String
+  | .xol _ _ _ _ _ => "excess of loss"
+  | .quotaShare _ _ _ => "quota share"
+  | .surplusShare _ _ _ => "surplus share"
+  | .aggregateStopLoss _ _ => "aggregate stop loss"
+
+/-- What the contract actually does, in the words an actuary would use. The
+numbers are printed from the same fields the proofs consume, so this cannot
+describe a contract the kernel did not see. -/
+def kindText (c : BoundContract) : String :=
+  match c.kind with
+  | .xol att occ agg rate prem =>
+      s!"pays 100% of subject loss above {att} {c.currency} up to {occ} {c.currency} per occurrence and {agg} {c.currency} annual aggregate, with reinstatement at {bpsText rate} of the {prem} {c.currency} base premium"
+  | .quotaShare share cap comm =>
+      s!"pays {bpsText share} of subject loss up to {cap} {c.currency} per event, with {bpsText comm} ceding commission"
+  | .surplusShare ret lines cap =>
+      s!"pays the part of subject loss above a {ret} {c.currency} retention line for {lines} lines, capped at {cap} {c.currency} per event"
+  | .aggregateStopLoss att lim =>
+      s!"pays annual net loss above {att} {c.currency} up to {lim} {c.currency} in aggregate"
+
+/-- Deterministic Lean-to-English rendering of a bound contract. This is the
+back-translation half of the "lost in translation" check: if the English does
+not match the slip, either the parser or the model is wrong. -/
+def informalizeContract (c : BoundContract) : String :=
+  s!"{c.direction} {kindName c.kind} '{c.id}' with {c.rating}-rated {c.counterparty} in {c.currency} covering [{perilsText c.perils}] at priority {c.inuringPriority}: {kindText c}. Scope note: exact integer units, zero franchise, no sub-limits and no hours-clause aggregation are modelled."
+
 end ReinsuranceLeanCockpit

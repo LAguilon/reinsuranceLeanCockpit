@@ -237,10 +237,45 @@ def parse_contract(text: str) -> tuple[dict, list]:
     return contract, warnings
 
 
+# Clauses that carry real legal meaning and have no representation in
+# `BoundContract`. Detection is lexical and deliberately blunt: a false positive
+# costs a reviewer five minutes, a false negative costs a claim dispute.
+UNMODELED_CLAUSES = [
+    ("franchise", r"franchise"),
+    ("hours clause", r"hours?\s+clause"),
+    ("72 hours", r"72\s*hours"),
+    ("168 hours", r"168\s*hours"),
+    ("excluding", r"exclud(?:ing|ed|es|sion)"),
+    ("sub-limit", r"sub-?limit"),
+    ("cyber war", r"cyber\s*war"),
+    ("terrorism", r"terrorism"),
+    ("inuring to", r"inuring\s+to"),
+    ("loss corridor", r"loss\s+corridor"),
+]
+
+
+def scan_translation_divergence(text: str) -> list:
+    """Buzzard's 'lost in translation' check: what does the paper say that the
+    model cannot say?"""
+    found = []
+    for label, pattern in UNMODELED_CLAUSES:
+        if re.search(pattern, text, re.IGNORECASE):
+            found.append(
+                f"Clause '{label}' detected in PDF text but is NOT modeled in the "
+                f"Lean BoundContract AST - review manually!"
+            )
+    return found
+
+
 def parse_slip_bytes(data: bytes, filename: str = "") -> dict:
     text = extract_text(data, filename)
     contract, warnings = parse_contract(text)
-    return {"extractedText": text, "contract": contract, "parseWarnings": warnings}
+    return {
+        "extractedText": text,
+        "contract": contract,
+        "parseWarnings": warnings,
+        "translationWarnings": scan_translation_divergence(text),
+    }
 
 
 def parse_slip_file(path: str) -> dict:

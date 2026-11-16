@@ -10,6 +10,7 @@ Exit code 0 and the string ALL E2E CHECKS PASSED on success.
 """
 
 import json
+import subprocess
 import sys
 import threading
 import urllib.error
@@ -78,7 +79,7 @@ def main() -> int:
         presets = request(base, "/api/presets")
         check("GET /api/presets: 2 portfolios", len(presets.get("portfolios", [])) == 2)
         check("GET /api/presets: scenario present", presets.get("scenario") is not None)
-        check("GET /api/presets: 3 slips", len(presets.get("slips", [])) == 3)
+        check("GET /api/presets: 4 slips", len(presets.get("slips", [])) == 4)
 
         as_bound = presets["portfolios"][0]["portfolio"]
         fixed = presets["portfolios"][1]["portfolio"]
@@ -128,6 +129,25 @@ def main() -> int:
         check(
             "slip 2: cites the Cayman cell",
             any("Cayman Cell 99" in f["message"] for f in slip2["auditAfterBind"]["findings"]),
+        )
+
+        slip4 = bind("SLIP_04_Lost_In_Translation_Hours_Excl.pdf")
+        check("slip 4: parsed from PDF", slip4["contract"]["id"] == "CNT-US-FL-EXCL")
+        check(
+            "slip 4: Lean back-translation is non-empty",
+            len(slip4.get("leanBackTranslation") or "") > 40,
+            str(slip4.get("leanBackTranslation"))[:60],
+        )
+        check(
+            "slip 4: back-translation names the attachment",
+            "25000000" in (slip4.get("leanBackTranslation") or ""),
+        )
+        divergences = " | ".join(slip4.get("translationWarnings") or [])
+        check("slip 4: catches the 72 hours clause", "72 hours" in divergences, divergences[:120])
+        check("slip 4: catches the exclusion wording", "excluding" in divergences.lower())
+        check(
+            "slip 4: gatekeeper still admits the numbers",
+            slip4["auditAfterBind"]["allContractsValid"] is True,
         )
 
         slip3 = bind("SLIP_03_Illegal_115pct_QuotaShare.pdf")
@@ -212,6 +232,11 @@ def main() -> int:
             f"{ratios[0]} -> {ratios[-1]}",
         )
         check(
+            "sweep: ratio strictly falls from $0 to $200M",
+            ratios[0] > ratios[3],
+            f"{ratios[0]} -> {ratios[3]}",
+        )
+        check(
             "sweep: own funds never exceed initial capital",
             all(r["postSeasonOwnFundsEur"] <= r["initialOwnFundsEur"] for r in sweep),
         )
@@ -231,6 +256,12 @@ def main() -> int:
                 for r in sweep
             ),
         )
+
+        audit = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "paranoid_audit.py")],
+            capture_output=True, text=True,
+        )
+        check("paranoid audit (Buzzard Q1..Q4) exits 0", audit.returncode == 0, audit.stdout[-200:])
 
         with urllib.request.urlopen(base + "/api/slips/SLIP_01_Valid_Gap_Closer_USD.pdf") as res:
             content_type = res.headers.get("Content-Type", "")

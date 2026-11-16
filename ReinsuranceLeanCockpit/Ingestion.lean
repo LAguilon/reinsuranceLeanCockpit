@@ -347,6 +347,8 @@ instance : ToJson ScenarioSimulationReport where
       , ("seasonLossDrainEur", ToJson.toJson r.seasonLossDrainEur)
       , ("postSeasonOwnFundsEur", ToJson.toJson r.postSeasonOwnFundsEur)
       , ("postSeasonScrEur", ToJson.toJson r.postSeasonScrEur)
+      , ("isEquityWipedOut", ToJson.toJson r.isEquityWipedOut)
+      , ("postSeasonSolvencyRatioPct", ToJson.toJson r.postSeasonSolvencyRatioPct)
       , ("preSeasonSolvencyRatioPct", ToJson.toJson r.preSeasonSolvencyRatioPct)
       , ("solvencyRatioPct", ToJson.toJson r.solvencyRatioPct)
       , ("isSolvent", ToJson.toJson r.isSolvent) ]
@@ -501,7 +503,25 @@ def verifiedTheorems : List TheoremRecord :=
   , theoremRecord "postSeasonRatio_antitone_num" "Monotonicity"
       "For a fixed capital requirement, less capital means a lower ratio."
   , theoremRecord "postSeasonRatio_antitone" "Monotonicity"
-      "A larger season drain can only lower the post-season solvency ratio." ]
+      "A larger drain or a larger requirement can only lower the post-season solvency ratio."
+  , theoremRecord "postSeasonRatio_antitone_fixedScr" "Monotonicity"
+      "With a fixed requirement, a larger drain lowers the post-season ratio."
+  , theoremRecord "verified_NoOverRecovery" "TrustProofs"
+      "Discharges Spec_NoOverRecovery: no valid contract pays more than the loss."
+  , theoremRecord "verified_TowerMoneyConservation" "TrustProofs"
+      "Discharges Spec_TowerMoneyConservation: tower net plus recovered equals gross."
+  , theoremRecord "verified_ContractPayoutMonotone" "TrustProofs"
+      "Discharges Spec_ContractPayoutMonotone: payout is monotone in the loss."
+  , theoremRecord "verified_TowerNetLossMonotone" "TrustProofs"
+      "Discharges Spec_TowerNetLossMonotone: tower net is monotone in the gross loss."
+  , theoremRecord "verified_PostSeasonSolvencyAntitone" "TrustProofs"
+      "Discharges Spec_PostSeasonSolvencyAntitone: more drain never raises the ratio."
+  , theoremRecord "verified_GatekeeperExactness" "TrustProofs"
+      "Discharges Spec_GatekeeperExactness: the gate is exactly the isValid predicate."
+  , theoremRecord "verified_AlpineUniversalFxFix" "TrustProofs"
+      "Discharges Spec_AlpineUniversalFxFix: the FX fix holds for every loss and rate."
+  , theoremRecord "verified_NonVacuityWitness" "TrustProofs"
+      "Discharges Spec_NonVacuityWitness: a concrete valid contract really pays." ]
 
 def verifiedTheoremsJson : String :=
   Json.compress (ToJson.toJson verifiedTheorems)

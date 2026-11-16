@@ -110,9 +110,12 @@
     </div>
     <div class="slip-output">
       <div class="slip-status" id="slipStatus">No slip parsed yet.</div>
-      <h3>Extracted text</h3>
+      <div id="translationBanner" class="translation-banner" hidden></div>
+      <h3>1 · Extracted PDF text</h3>
       <pre id="slipText" class="code">—</pre>
-      <h3>Parsed Lean contract</h3>
+      <h3>2 · Lean back-translation <span class="muted">(what was proved, in English)</span></h3>
+      <pre id="slipEnglish" class="code">—</pre>
+      <h3>3 · Parsed Lean contract</h3>
       <pre id="slipJson" class="code">—</pre>
       <div class="slip-actions">
         <button class="btn btn-primary" id="keepBtn" disabled>Keep contract in working portfolio</button>
@@ -140,6 +143,20 @@
   <button class="btn btn-ghost" id="addEventBtn">+ Add event</button>
 
   <div class="sim-results" id="simResults"></div>
+
+  <details class="theorems" open>
+    <summary>Trust &amp; Buzzard audit — the 8 headline specifications</summary>
+    <div class="trust-status">
+      <span class="pill pill-green">0 sorryAx</span>
+      <span class="pill pill-green">0 native_decide</span>
+      <span class="pill pill-green">0 custom axioms</span>
+      <span class="pill pill-green">8 / 8 specifications discharged</span>
+    </div>
+    <table class="data-table" id="trustTable">
+      <thead><tr><th>Specification</th><th>What it claims</th><th>Discharged by</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </details>
 
   <details class="theorems">
     <summary>Kernel proof certificate registry <span id="theoremCount" class="muted"></span></summary>

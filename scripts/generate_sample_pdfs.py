@@ -62,16 +62,18 @@ HEADER = [
 
 WORDING = [
     "--------------------------------------------------",
-    "WORDING: Subject to standard hours clause and exact integer settlement.",
+    "WORDING: Subject to exact integer settlement.",
     "All amounts are expressed in minor units of the stated currency.",
     "Governing law: England and Wales. Arbitration: London, LCIA rules.",
     "Signed for and on behalf of the reinsurer by duly authorised signatory.",
 ]
 
 
-def slip_lines(fields: list[tuple[str, str]]) -> list[str]:
+def slip_lines(fields: list[tuple[str, str]], extra_wording: list[str] | None = None) -> list[str]:
     lines = list(HEADER)
     lines += [f"{k}: {v}" for k, v in fields]
+    if extra_wording:
+        lines += ["--------------------------------------------------"] + extra_wording
     lines += WORDING
     return lines
 
@@ -125,18 +127,43 @@ SLIP_03_FIELDS = [
     ("Commission_Bps", "2000"),
 ]
 
+SLIP_04_FIELDS = [
+    ("Contract_ID", "CNT-US-FL-EXCL"),
+    ("Contract_Name", "Florida Wind XoL 20M xs 25M (with unmodeled wording)"),
+    ("Counterparty", "Northwind Re"),
+    ("Credit_Rating", "AA"),
+    ("Direction", "Outward"),
+    ("Currency", "USD"),
+    ("Perils", "Windstorm"),
+    ("Inuring_Priority", "10"),
+    ("Contract_Type", "XoL"),
+    ("Attachment", "25000000"),
+    ("Occurrence_Limit", "20000000"),
+    ("Aggregate_Limit", "20000000"),
+    ("Reinstatement_Rate_Bps", "10000"),
+    ("Base_Premium", "800000"),
+]
+
+# Wording that the Lean AST does NOT model. This is the point of the slip: the
+# numbers are acceptable, so the gate passes it, and the translation scanner is
+# the only thing that can catch the divergence between paper and model.
+SLIP_04_EXTRA_WORDING = [
+    "Subject to 72 hours clause and excluding Florida named counties.",
+]
+
 SLIPS = [
-    ("SLIP_01_Valid_Gap_Closer_USD.pdf", SLIP_01_FIELDS),
-    ("SLIP_02_Trap_Unrated_FX_Mismatch.pdf", SLIP_02_FIELDS),
-    ("SLIP_03_Illegal_115pct_QuotaShare.pdf", SLIP_03_FIELDS),
+    ("SLIP_01_Valid_Gap_Closer_USD.pdf", SLIP_01_FIELDS, None),
+    ("SLIP_02_Trap_Unrated_FX_Mismatch.pdf", SLIP_02_FIELDS, None),
+    ("SLIP_03_Illegal_115pct_QuotaShare.pdf", SLIP_03_FIELDS, None),
+    ("SLIP_04_Lost_In_Translation_Hours_Excl.pdf", SLIP_04_FIELDS, SLIP_04_EXTRA_WORDING),
 ]
 
 
 def main() -> None:
     base = Path(__file__).resolve().parent.parent / "examples" / "slips"
     base.mkdir(parents=True, exist_ok=True)
-    for name, fields in SLIPS:
-        lines = slip_lines(fields)
+    for name, fields, extra in SLIPS:
+        lines = slip_lines(fields, extra)
         write_simple_pdf(str(base / name), lines)
         (base / name.replace(".pdf", ".txt")).write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"wrote {base / name} ({len(lines)} lines)")

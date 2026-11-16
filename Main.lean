@@ -183,6 +183,15 @@ def simulateFile (portfolioPath scenarioPath : String) (asJson : Bool) : IO Unit
   else
     printSimulation (runPortfolioScenario p sc)
 
+def informalizeFile (path : String) : IO Unit := do
+  let text ← IO.FS.readFile path
+  match Json.parse text with
+  | .error e => throw (IO.userError s!"{path}: invalid JSON: {e}")
+  | .ok j =>
+      match (fromJson? j : Except String BoundContract) with
+      | .error e => throw (IO.userError s!"{path}: invalid contract: {e}")
+      | .ok c => IO.println (informalizeContract c)
+
 def printTheorems (asJson : Bool) : IO Unit := do
   if asJson then
     IO.println verifiedTheoremsJson
@@ -199,6 +208,7 @@ def usage : IO Unit := do
   IO.println "  cockpit audit <portfolio.json> --json  machine-readable verified audit report"
   IO.println "  cockpit simulate <portfolio.json> <scenario.json> [--json]"
   IO.println "  cockpit theorems [--json]            kernel proof registry"
+  IO.println "  cockpit informalize <contract.json>  Lean-to-English back-translation"
 
 def main (args : List String) : IO Unit := do
   match args with
@@ -208,6 +218,7 @@ def main (args : List String) : IO Unit := do
   | ["simulate", portfolioPath, scenarioPath] => simulateFile portfolioPath scenarioPath false
   | ["simulate", portfolioPath, scenarioPath, "--json"] =>
       simulateFile portfolioPath scenarioPath true
+  | ["informalize", path] => informalizeFile path
   | ["theorems"] => printTheorems false
   | ["theorems", "--json"] => printTheorems true
   | _ => usage

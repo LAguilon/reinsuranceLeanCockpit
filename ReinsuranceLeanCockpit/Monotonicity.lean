@@ -161,12 +161,35 @@ theorem postSeasonRatio_antitone_num {f₁ f₂ scr : Nat} (h : f₂ ≤ f₁) :
     rw [ite_eq_right hz', ite_eq_right hz']
     exact Nat.div_le_div_right (Nat.mul_le_mul_right 100 h)
 
-/-- **The headline invariant.** A larger season drain can only lower the
-post-season solvency ratio. This is the statement the UI bug contradicted, and
-it now holds for every portfolio, every scenario and every requirement. -/
-theorem postSeasonRatio_antitone {initialOwnFunds scr d₁ d₂ : Nat} (h : d₁ ≤ d₂) :
+/-- A larger season drain lowers the ratio when the requirement is fixed. -/
+theorem postSeasonRatio_antitone_fixedScr {initialOwnFunds scr d₁ d₂ : Nat} (h : d₁ ≤ d₂) :
     postSeasonRatio initialOwnFunds scr d₂ ≤ postSeasonRatio initialOwnFunds scr d₁ := by
   unfold postSeasonRatio
   exact postSeasonRatio_antitone_num (postSeasonOwnFunds_antitone initialOwnFunds h)
+
+/-- **The headline invariant, in both directions.** A larger drain cannot raise
+the ratio, and a larger capital requirement cannot lower it. Stated jointly
+because a real book moves both: a season that consumes capital may also raise
+the forward requirement, and the ratio must fall either way.
+
+This is the statement the v0.3 UI contradicted. It now holds for every
+portfolio, every scenario, every drain and every positive requirement. -/
+theorem postSeasonRatio_antitone {initialOwnFunds scr₁ scr₂ d₁ d₂ : Nat}
+    (hd : d₁ ≤ d₂) (hs : scr₁ ≤ scr₂) (hpos : 0 < scr₁) :
+    postSeasonRatio initialOwnFunds scr₂ d₂ ≤ postSeasonRatio initialOwnFunds scr₁ d₁ := by
+  unfold postSeasonRatio
+  have hne₁ : ¬ ((scr₁ == 0) = true) := by
+    intro h
+    exact Nat.ne_of_gt hpos (by simpa using h)
+  have hpos₂ : 0 < scr₂ := Nat.lt_of_lt_of_le hpos hs
+  have hne₂ : ¬ ((scr₂ == 0) = true) := by
+    intro h
+    exact Nat.ne_of_gt hpos₂ (by simpa using h)
+  rw [ite_eq_right hne₂, ite_eq_right hne₁]
+  have hnum : (initialOwnFunds - d₂) * 100 ≤ (initialOwnFunds - d₁) * 100 :=
+    Nat.mul_le_mul_right 100 (by omega)
+  calc (initialOwnFunds - d₂) * 100 / scr₂
+      ≤ (initialOwnFunds - d₁) * 100 / scr₂ := Nat.div_le_div_right hnum
+    _ ≤ (initialOwnFunds - d₁) * 100 / scr₁ := Nat.div_le_div_left hs hpos
 
 end ReinsuranceLeanCockpit
